@@ -35,8 +35,8 @@ import androidx.input.motionprediction.MotionEventPredictor
 import com.tbuckley.easel.ui.theme.EaselTheme
 
 class MainActivity : ComponentActivity(), InProgressStrokesFinishedListener {
-    private lateinit var inProgressStrokesView: InProgressStrokesView;
-    private val strokes = mutableListOf<Stroke>()
+    private lateinit var inProgressStrokesView: InProgressStrokesView
+    private val finalStrokes = mutableListOf<Stroke>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity(), InProgressStrokesFinishedListener {
                     NoteCanvas(
                         modifier = Modifier.padding(innerPadding),
                         inProgressStrokesView = inProgressStrokesView,
-                        strokes = strokes,
+                        strokes = finalStrokes,
                     )
                 }
             }
@@ -59,9 +59,9 @@ class MainActivity : ComponentActivity(), InProgressStrokesFinishedListener {
     }
 
     @UiThread
-    override fun onStrokesFinished(finished: Map<InProgressStrokeId, Stroke>) {
-        strokes += finished.values.map { it.copy(it.brush.copyWithColorIntArgb(Color.RED)) }
-        inProgressStrokesView.removeFinishedStrokes(finished.keys)
+    override fun onStrokesFinished(strokes: Map<InProgressStrokeId, Stroke>) {
+        finalStrokes += strokes.values.map { it.copy(it.brush.copyWithColorIntArgb(Color.RED)) }
+        inProgressStrokesView.removeFinishedStrokes(strokes.keys)
     }
 }
 
