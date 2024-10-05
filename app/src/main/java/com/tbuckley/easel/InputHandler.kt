@@ -5,9 +5,6 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.MotionEvent.*
 import android.view.View
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.ink.authoring.InProgressStrokeId
 import androidx.ink.authoring.InProgressStrokesView
 import androidx.ink.brush.Brush
@@ -65,7 +62,7 @@ class IdleNode : InputStateNode {
 // Drawing State Node
 class DrawingNode(private val view: View, private val inProgressStrokesView: InProgressStrokesView) : InputStateNode {
     override val id: String = "drawing"
-    private val predictor: MotionEventPredictor = MotionEventPredictor.newInstance(view);
+    private val predictor: MotionEventPredictor = MotionEventPredictor.newInstance(view)
     private var currentPointerId: Int? = null
     private var currentStrokeId: InProgressStrokeId? = null
     var brush: Brush = Brush.createWithColorIntArgb(
@@ -96,12 +93,12 @@ class DrawingNode(private val view: View, private val inProgressStrokesView: InP
         predictor.record(event)
 
         return when (event.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
+            ACTION_DOWN -> {
                 // TODO handle an additional pointer down?
                 null
             }
 
-            MotionEvent.ACTION_MOVE -> {
+            ACTION_MOVE -> {
                 val pointerId = checkNotNull(currentPointerId)
                 val strokeId = checkNotNull(currentStrokeId)
                 for (pointerIndex in 0 until event.pointerCount) {
@@ -114,7 +111,7 @@ class DrawingNode(private val view: View, private val inProgressStrokesView: InP
                 null
             }
 
-            MotionEvent.ACTION_UP -> {
+            ACTION_UP -> {
                 val pointerIndex = event.actionIndex
                 val pointerId = event.getPointerId(pointerIndex)
                 check(pointerId == currentPointerId)
@@ -126,7 +123,7 @@ class DrawingNode(private val view: View, private val inProgressStrokesView: InP
                 "idle"
             }
 
-            MotionEvent.ACTION_CANCEL -> {
+            ACTION_CANCEL -> {
                 val pointerIndex = event.actionIndex
                 val pointerId = event.getPointerId(pointerIndex)
                 check(pointerId == currentPointerId)

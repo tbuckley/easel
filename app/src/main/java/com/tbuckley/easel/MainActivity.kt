@@ -4,8 +4,6 @@ import android.annotation.SuppressLint
 import android.graphics.Color
 import android.graphics.Matrix
 import android.os.Bundle
-import android.util.Log
-import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
@@ -22,10 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.material3.Switch
 import androidx.compose.foundation.layout.Column
@@ -39,11 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.ink.authoring.InProgressStrokeId
 import androidx.ink.authoring.InProgressStrokesFinishedListener
 import androidx.ink.authoring.InProgressStrokesView
-import androidx.ink.brush.Brush
-import androidx.ink.brush.StockBrushes
 import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
 import androidx.ink.strokes.Stroke
-import androidx.input.motionprediction.MotionEventPredictor
 import com.tbuckley.easel.ui.theme.EaselTheme
 
 class MainActivity : ComponentActivity(), InProgressStrokesFinishedListener {
@@ -84,8 +76,8 @@ fun NoteCanvas(
     inProgressStrokesView: InProgressStrokesView,
     strokes: List<Stroke>,
 ) {
-    var scale by remember { mutableStateOf(1f) }
-    var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    val scale by remember { mutableStateOf(1f) }
+    val offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     var treatTouchAsStylus by remember { mutableStateOf(false) }
     val canvasRenderer = CanvasStrokeRenderer.create()
 
