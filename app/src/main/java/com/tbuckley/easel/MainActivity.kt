@@ -84,18 +84,14 @@ fun NoteCanvas(
     inProgressStrokesView: InProgressStrokesView,
     strokes: List<Stroke>,
 ) {
-    val currentPointerId = remember { mutableStateOf<Int?>(null) }
-    val currentStrokeId = remember { mutableStateOf<InProgressStrokeId?>(null) }
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
     var treatTouchAsStylus by remember { mutableStateOf(false) }
-    val defaultBrush = Brush.builder()
-        .setFamily(StockBrushes.pressurePenLatest)
-        .setSize(5f)
-        .setEpsilon(0.1f)
-        .setColorIntArgb(Color.BLACK)
-        .build()
     val canvasRenderer = CanvasStrokeRenderer.create()
+
+    val inputHandler = InputStateMachine()
+    inputHandler.registerNode(IdleNode())
+    inputHandler.setCurrentNode("idle")
 
     Column(modifier = modifier.fillMaxSize()) {
         Row {
@@ -109,15 +105,6 @@ fun NoteCanvas(
         Box(modifier = Modifier
             .weight(1f)
             .fillMaxWidth()
-            .pointerInput(treatTouchAsStylus) {
-                if(!treatTouchAsStylus) {
-                    Log.d("NotesCanvas", "pointerInput: $treatTouchAsStylus")
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        scale *= zoom
-                        offset += pan
-                    }
-                }
-            }
         ) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
@@ -129,72 +116,16 @@ fun NoteCanvas(
                         FrameLayout.LayoutParams.MATCH_PARENT
                     )
                 }
-                val predictor = MotionEventPredictor.newInstance(rootView)
-                val touchListener = View.OnTouchListener { view, event ->
-                    val isStylus = event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS || treatTouchAsStylus
-                    Log.d("NoteCanvas", "isStylus: $isStylus")
-                    if (isStylus && event.pointerCount == 1) {
-                        predictor.record(event)
-                        val predictedEvent = predictor.predict()
-                        try {
-                            when (event.actionMasked) {
-                                MotionEvent.ACTION_DOWN -> {
-                                    view.requestUnbufferedDispatch(event)
-                                    val pointerIndex = event.actionIndex
-                                    val pointerId = event.getPointerId(pointerIndex)
-                                    currentPointerId.value = pointerId
-                                    currentStrokeId.value = inProgressStrokesView.startStroke(event, pointerId, defaultBrush)
-                                    Log.d("NoteCanvas", "startStroke: ${currentStrokeId.value}")
-                                    true
-                                }
-                                MotionEvent.ACTION_MOVE -> {
-                                    val pointerId = checkNotNull(currentPointerId.value)
-                                    val strokeId = checkNotNull(currentStrokeId.value)
-                                    for(pointerIndex in 0 until event.pointerCount) {
-                                        if(event.getPointerId(pointerIndex) != pointerId) continue
-                                        inProgressStrokesView.addToStroke(event, pointerId, strokeId)
-                                        Log.d("NoteCanvas", "addToStroke: ${currentStrokeId.value}")
-                                    }
-                                    true
-                                }
-                                MotionEvent.ACTION_UP -> {
-                                    val pointerIndex = event.actionIndex
-                                    val pointerId = event.getPointerId(pointerIndex)
-                                    check(pointerId == currentPointerId.value)
-                                    val strokeId = checkNotNull(currentStrokeId.value)
-                                    inProgressStrokesView.finishStroke(event, pointerId, strokeId)
-                                    Log.d("NoteCanvas", "finishStroke: ${currentStrokeId.value}")
-                                    currentPointerId.value = null
-                                    currentStrokeId.value = null
-                                    true
-                                }
-                                MotionEvent.ACTION_CANCEL -> {
-                                    val pointerIndex = event.actionIndex
-                                    val pointerId = event.getPointerId(pointerIndex)
-                                    check(pointerId == currentPointerId.value)
-                                    val strokeId = checkNotNull(currentStrokeId.value)
-                                    inProgressStrokesView.cancelStroke(strokeId, event)
-                                    Log.d("NoteCanvas", "cancelStroke: ${currentStrokeId.value}")
-                                    currentPointerId.value = null
-                                    currentStrokeId.value = null
-                                    true
-                                }
-                                else -> false
-                            }
-                        } finally {
-                            predictedEvent?.recycle()
-                        }
-                    } else {
-                        false
-                    }
+                inputHandler.registerNode(DrawingNode(rootView, inProgressStrokesView))
+                val touchListener = View.OnTouchListener { _, event ->
+                    inputHandler.handleMotionEvent(event)
+                    true
                 }
                 rootView.setOnTouchListener(touchListener)
                 rootView.addView(inProgressStrokesView)
                 rootView
             }
-        ) {
-
-        }
+        ) {}
         Canvas(modifier = Modifier.fillMaxSize()) {
             val canvasTransform = Matrix()
             canvasTransform.setScale(scale, scale)
