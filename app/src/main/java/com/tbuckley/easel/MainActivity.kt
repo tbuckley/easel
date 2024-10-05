@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.graphics.Color
 import android.graphics.Matrix
 import android.os.Bundle
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.widget.FrameLayout
@@ -30,9 +31,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
 import androidx.ink.authoring.InProgressStrokeId
 import androidx.ink.authoring.InProgressStrokesFinishedListener
 import androidx.ink.authoring.InProgressStrokesView
@@ -106,10 +109,13 @@ fun NoteCanvas(
         Box(modifier = Modifier
             .weight(1f)
             .fillMaxWidth()
-            .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale *= zoom
-                    offset += pan
+            .pointerInput(treatTouchAsStylus) {
+                if(!treatTouchAsStylus) {
+                    Log.d("NotesCanvas", "pointerInput: $treatTouchAsStylus")
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        scale *= zoom
+                        offset += pan
+                    }
                 }
             }
         ) {
@@ -126,6 +132,7 @@ fun NoteCanvas(
                 val predictor = MotionEventPredictor.newInstance(rootView)
                 val touchListener = View.OnTouchListener { view, event ->
                     val isStylus = event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS || treatTouchAsStylus
+                    Log.d("NoteCanvas", "isStylus: $isStylus")
                     if (isStylus && event.pointerCount == 1) {
                         predictor.record(event)
                         val predictedEvent = predictor.predict()
@@ -137,6 +144,7 @@ fun NoteCanvas(
                                     val pointerId = event.getPointerId(pointerIndex)
                                     currentPointerId.value = pointerId
                                     currentStrokeId.value = inProgressStrokesView.startStroke(event, pointerId, defaultBrush)
+                                    Log.d("NoteCanvas", "startStroke: ${currentStrokeId.value}")
                                     true
                                 }
                                 MotionEvent.ACTION_MOVE -> {
@@ -145,6 +153,7 @@ fun NoteCanvas(
                                     for(pointerIndex in 0 until event.pointerCount) {
                                         if(event.getPointerId(pointerIndex) != pointerId) continue
                                         inProgressStrokesView.addToStroke(event, pointerId, strokeId)
+                                        Log.d("NoteCanvas", "addToStroke: ${currentStrokeId.value}")
                                     }
                                     true
                                 }
@@ -154,6 +163,7 @@ fun NoteCanvas(
                                     check(pointerId == currentPointerId.value)
                                     val strokeId = checkNotNull(currentStrokeId.value)
                                     inProgressStrokesView.finishStroke(event, pointerId, strokeId)
+                                    Log.d("NoteCanvas", "finishStroke: ${currentStrokeId.value}")
                                     currentPointerId.value = null
                                     currentStrokeId.value = null
                                     true
@@ -164,6 +174,7 @@ fun NoteCanvas(
                                     check(pointerId == currentPointerId.value)
                                     val strokeId = checkNotNull(currentStrokeId.value)
                                     inProgressStrokesView.cancelStroke(strokeId, event)
+                                    Log.d("NoteCanvas", "cancelStroke: ${currentStrokeId.value}")
                                     currentPointerId.value = null
                                     currentStrokeId.value = null
                                     true
