@@ -1,6 +1,7 @@
 package com.tbuckley.easel
 
 import android.graphics.Color
+import android.graphics.Matrix
 import android.util.Log
 import android.view.MotionEvent
 import android.view.MotionEvent.*
@@ -52,15 +53,19 @@ class IdleNode : InputStateNode {
     override val id: String = "idle"
 
     override fun handleMotionEvent(event: MotionEvent): String? {
-        return when (event.actionMasked) {
-            ACTION_DOWN -> "drawing"
-            else -> null // Stay in current state
+        return when {
+            // Only change when we have a single pointer with action down
+            event.actionMasked == ACTION_DOWN && event.pointerCount == 1 -> "drawing"
+            else -> null
         }
     }
 }
 
 // Drawing State Node
-class DrawingNode(private val view: View, private val inProgressStrokesView: InProgressStrokesView) : InputStateNode {
+class DrawingNode(
+    private val view: View,
+    private val inProgressStrokesView: InProgressStrokesView
+) : InputStateNode {
     override val id: String = "drawing"
     private val predictor: MotionEventPredictor = MotionEventPredictor.newInstance(view)
     private var currentPointerId: Int? = null
@@ -75,37 +80,47 @@ class DrawingNode(private val view: View, private val inProgressStrokesView: InP
     override fun onEnter(event: MotionEvent?) {
         checkNotNull(event)
         check(event.pointerCount == 1)
+        check(currentPointerId == null)
+        check(currentStrokeId == null)
 
         view.requestUnbufferedDispatch(event)
         val pointerIndex = event.actionIndex
         val pointerId = event.getPointerId(pointerIndex)
         currentPointerId = pointerId
         currentStrokeId = inProgressStrokesView.startStroke(event, pointerId, brush)
-        Log.d("NoteCanvas", "startStroke: $currentStrokeId")
+        Log.d("NoteCanvas", "onEnter: $currentStrokeId")
+    }
+
+    override fun onExit(event: MotionEvent?) {
+        Log.d("NoteCanvas", "onExit: $currentStrokeId")
+        currentPointerId = null
+        currentStrokeId = null
     }
 
     override fun handleMotionEvent(event: MotionEvent): String? {
         // Transition to idle if pointer count is no longer 1
-        if(event.pointerCount != 1) {
-            return "idle"
-        }
+//        if(event.pointerCount != 1) {
+//            return "idle"
+//        }
 
-        predictor.record(event)
 
         return when (event.actionMasked) {
-            ACTION_DOWN -> {
-                // TODO handle an additional pointer down?
-                null
+            ACTION_POINTER_DOWN -> {
+                Log.d("DrawingNode", "ACTION_POINTER_DOWN: ${event.pointerCount}")
+                // TODO only when it's a touch
+                val strokeId = checkNotNull(currentStrokeId)
+                inProgressStrokesView.cancelStroke(strokeId, event)
+                "pinch-zoom"
             }
 
             ACTION_MOVE -> {
+                predictor.record(event)
                 val pointerId = checkNotNull(currentPointerId)
                 val strokeId = checkNotNull(currentStrokeId)
                 for (pointerIndex in 0 until event.pointerCount) {
                     if (event.getPointerId(pointerIndex) != pointerId) continue
                     val predictedEvent = predictor.predict()
                     inProgressStrokesView.addToStroke(event, pointerId, strokeId)
-                    Log.d("NoteCanvas", "addToStroke: $currentStrokeId")
                     predictedEvent?.recycle()
                 }
                 null
@@ -117,9 +132,7 @@ class DrawingNode(private val view: View, private val inProgressStrokesView: InP
                 check(pointerId == currentPointerId)
                 val strokeId = checkNotNull(currentStrokeId)
                 inProgressStrokesView.finishStroke(event, pointerId, strokeId)
-                Log.d("NoteCanvas", "finishStroke: $currentStrokeId")
-                currentPointerId = null
-                currentStrokeId = null
+                Log.d("DrawingNode", "finishStroke: $currentStrokeId")
                 "idle"
             }
 
@@ -129,13 +142,85 @@ class DrawingNode(private val view: View, private val inProgressStrokesView: InP
                 check(pointerId == currentPointerId)
                 val strokeId = checkNotNull(currentStrokeId)
                 inProgressStrokesView.cancelStroke(strokeId, event)
-                Log.d("NoteCanvas", "cancelStroke: $currentStrokeId")
-                currentPointerId = null
-                currentStrokeId = null
+                Log.d("DrawingNode", "cancelStroke: $currentStrokeId")
                 "idle"
             }
 
             else -> null
         }
+    }
+}
+
+class PinchZoomNode(private val onTransform: (Matrix) -> Unit) : InputStateNode {
+    override val id: String = "pinch-zoom"
+    private var previousCenterX: Float = 0f
+    private var previousCenterY: Float = 0f
+    private var previousDistance: Float = 0f
+    private val matrix = Matrix()
+
+    override fun onEnter(event: MotionEvent?) {
+        checkNotNull(event)
+        check(event.pointerCount == 2)
+        updatePreviousValues(event)
+    }
+
+    override fun handleMotionEvent(event: MotionEvent): String? {
+        return when (event.actionMasked) {
+            ACTION_MOVE -> {
+                if (event.pointerCount == 2) {
+                    updateTransform(event)
+                    updatePreviousValues(event)
+                    null
+                } else {
+                    "idle"
+                }
+            }
+
+            ACTION_UP, ACTION_POINTER_UP, ACTION_CANCEL -> "idle"
+            else -> null
+        }
+    }
+
+    private fun updatePreviousValues(event: MotionEvent) {
+        val (centerX, centerY) = calculateCenter(event)
+        previousCenterX = centerX
+        previousCenterY = centerY
+        previousDistance = calculateDistance(event)
+    }
+
+    private fun updateTransform(event: MotionEvent) {
+        val (centerX, centerY) = calculateCenter(event)
+        val distance = calculateDistance(event)
+
+        matrix.reset()
+
+        // Calculate and apply translation
+        val dx = centerX - previousCenterX
+        val dy = centerY - previousCenterY
+        matrix.postTranslate(dx, dy)
+
+        // Calculate and apply scale
+        val scale = distance / previousDistance
+        matrix.postScale(scale, scale, previousCenterX, previousCenterY)
+
+        onTransform(matrix)
+    }
+
+    private fun calculateCenter(event: MotionEvent): Pair<Float, Float> {
+        val x0 = event.getX(0)
+        val y0 = event.getY(0)
+        val x1 = event.getX(1)
+        val y1 = event.getY(1)
+        return Pair((x0 + x1) / 2, (y0 + y1) / 2)
+    }
+
+    private fun calculateDistance(event: MotionEvent): Float {
+        val x0 = event.getX(0)
+        val y0 = event.getY(0)
+        val x1 = event.getX(1)
+        val y1 = event.getY(1)
+        val dx = x1 - x0
+        val dy = y1 - y0
+        return kotlin.math.sqrt(dx * dx + dy * dy)
     }
 }
