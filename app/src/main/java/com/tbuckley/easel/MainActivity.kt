@@ -1,7 +1,6 @@
 package com.tbuckley.easel
 
 import android.annotation.SuppressLint
-import android.graphics.Color
 import android.graphics.Matrix
 import android.os.Bundle
 import android.util.Log
@@ -41,6 +40,7 @@ class MainActivity : ComponentActivity(), InProgressStrokesFinishedListener {
 
         inProgressStrokesView = InProgressStrokesView(this)
         inProgressStrokesView.addFinishedStrokesListener(this)
+        // inProgressStrokesView.useNewTPlusRenderHelper = true
 
         setContent {
             EaselTheme {
@@ -58,7 +58,7 @@ class MainActivity : ComponentActivity(), InProgressStrokesFinishedListener {
     @UiThread
     override fun onStrokesFinished(strokes: Map<InProgressStrokeId, Stroke>) {
         Log.d("MainActivity", "onStrokesFinished: ${strokes.size}")
-        finalStrokes += strokes.values.map { it.copy(it.brush.copyWithColorIntArgb(Color.RED)) }
+        finalStrokes += strokes.values //.map { it.copy(it.brush.copyWithColorIntArgb(Color.RED)) }
         inProgressStrokesView.removeFinishedStrokes(strokes.keys)
     }
 }
@@ -98,7 +98,7 @@ fun NoteCanvas(
                             FrameLayout.LayoutParams.MATCH_PARENT
                         )
                     }
-                    inputHandler.registerNode(DrawingNode(rootView, inProgressStrokesView))
+                    inputHandler.registerNode(DrawingNode(rootView, inProgressStrokesView, transform))
                     val touchListener = View.OnTouchListener { _, event ->
                         inputHandler.handleMotionEvent(event)
                         true

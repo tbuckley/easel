@@ -6,6 +6,7 @@ import android.util.Log
 import android.view.MotionEvent
 import android.view.MotionEvent.*
 import android.view.View
+import androidx.compose.runtime.MutableState
 import androidx.ink.authoring.InProgressStrokeId
 import androidx.ink.authoring.InProgressStrokesView
 import androidx.ink.brush.Brush
@@ -64,7 +65,8 @@ class IdleNode : InputStateNode {
 // Drawing State Node
 class DrawingNode(
     private val view: View,
-    private val inProgressStrokesView: InProgressStrokesView
+    private val inProgressStrokesView: InProgressStrokesView,
+    private val worldToScreenTransform: MutableState<Matrix>
 ) : InputStateNode {
     override val id: String = "drawing"
     private val predictor: MotionEventPredictor = MotionEventPredictor.newInstance(view)
@@ -73,7 +75,7 @@ class DrawingNode(
     var brush: Brush = Brush.createWithColorIntArgb(
         family = StockBrushes.pressurePenLatest,
         colorIntArgb = Color.BLACK,
-        size = 5f,
+        size = 3f,
         epsilon = 0.1f
     )
 
@@ -87,7 +89,13 @@ class DrawingNode(
         val pointerIndex = event.actionIndex
         val pointerId = event.getPointerId(pointerIndex)
         currentPointerId = pointerId
-        currentStrokeId = inProgressStrokesView.startStroke(event, pointerId, brush)
+
+        val motionEventToWorldTransform = Matrix()
+        worldToScreenTransform.value.invert(motionEventToWorldTransform)
+        currentStrokeId = inProgressStrokesView.startStroke(event, pointerId, brush, motionEventToWorldTransform)
+
+        predictor.record(event)
+
         Log.d("NoteCanvas", "onEnter: $currentStrokeId")
     }
 
@@ -102,6 +110,7 @@ class DrawingNode(
 //        if(event.pointerCount != 1) {
 //            return "idle"
 //        }
+        predictor.record(event)
 
 
         return when (event.actionMasked) {
@@ -114,13 +123,12 @@ class DrawingNode(
             }
 
             ACTION_MOVE -> {
-                predictor.record(event)
                 val pointerId = checkNotNull(currentPointerId)
                 val strokeId = checkNotNull(currentStrokeId)
                 for (pointerIndex in 0 until event.pointerCount) {
                     if (event.getPointerId(pointerIndex) != pointerId) continue
                     val predictedEvent = predictor.predict()
-                    inProgressStrokesView.addToStroke(event, pointerId, strokeId)
+                    inProgressStrokesView.addToStroke(event, pointerId, strokeId, predictedEvent)
                     predictedEvent?.recycle()
                 }
                 null
