@@ -21,8 +21,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.ink.authoring.InProgressStrokeId
 import androidx.ink.authoring.InProgressStrokesFinishedListener
 import androidx.ink.authoring.InProgressStrokesView
@@ -33,6 +31,7 @@ import com.tbuckley.easel.ui.theme.EaselTheme
 class MainActivity : ComponentActivity(), InProgressStrokesFinishedListener {
     private lateinit var inProgressStrokesView: InProgressStrokesView
     private val finalStrokes = mutableListOf<Stroke>()
+    private val tool = mutableStateOf<Tool>(Tool.Eraser(size = 5f))
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,6 +49,7 @@ class MainActivity : ComponentActivity(), InProgressStrokesFinishedListener {
                         inProgressStrokesView = inProgressStrokesView,
                         strokes = finalStrokes,
                     )
+                    Toolbar(tool.value, setTool = { tool.value = it } )
                 }
             }
         }
@@ -73,6 +73,7 @@ fun NoteCanvas(
     val transform = remember { mutableStateOf(Matrix()) }
     val canvasRenderer = CanvasStrokeRenderer.create()
 
+    // Set up input handler
     val inputHandler = InputStateMachine()
     inputHandler.registerNode(IdleNode())
     inputHandler.registerNode(PinchZoomNode(onTransform = { matrix ->
@@ -82,39 +83,33 @@ fun NoteCanvas(
     }))
     inputHandler.setCurrentNode("idle")
 
-    Column(modifier = modifier.fillMaxSize()) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { context ->
-                    val rootView = FrameLayout(context)
-                    inProgressStrokesView.apply {
-                        layoutParams = FrameLayout.LayoutParams(
-                            FrameLayout.LayoutParams.MATCH_PARENT,
-                            FrameLayout.LayoutParams.MATCH_PARENT
-                        )
-                    }
-                    inputHandler.registerNode(DrawingNode(rootView, inProgressStrokesView, transform))
-                    val touchListener = View.OnTouchListener { _, event ->
-                        inputHandler.handleMotionEvent(event)
-                        true
-                    }
-                    rootView.setOnTouchListener(touchListener)
-                    rootView.addView(inProgressStrokesView)
-                    rootView
+    Box(modifier = modifier.fillMaxSize()) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { context ->
+                val rootView = FrameLayout(context)
+                inProgressStrokesView.apply {
+                    layoutParams = FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT
+                    )
                 }
-            ) {}
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                drawContext.canvas.nativeCanvas.concat(transform.value)
-                val canvas = drawContext.canvas.nativeCanvas
+                inputHandler.registerNode(DrawingNode(rootView, inProgressStrokesView, transform))
+                val touchListener = View.OnTouchListener { _, event ->
+                    inputHandler.handleMotionEvent(event)
+                    true
+                }
+                rootView.setOnTouchListener(touchListener)
+                rootView.addView(inProgressStrokesView)
+                rootView
+            }
+        ) {}
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawContext.canvas.nativeCanvas.concat(transform.value)
+            val canvas = drawContext.canvas.nativeCanvas
 
-                strokes.forEach { stroke ->
-                    canvasRenderer.draw(canvas, stroke, Matrix())
-                }
+            strokes.forEach { stroke ->
+                canvasRenderer.draw(canvas, stroke, Matrix())
             }
         }
     }

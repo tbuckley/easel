@@ -65,4 +65,9 @@ dependencies {
     implementation(libs.androidx.ink.strokes)
 
     implementation(libs.androidx.input.motionprediction)
+
+
+    // Material Icons
+    implementation(libs.androidx.material.icons.core)
+    implementation(libs.androidx.material.icons.extended)
 }
