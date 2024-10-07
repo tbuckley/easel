@@ -33,13 +33,14 @@ class MainActivity : ComponentActivity(), InProgressStrokesFinishedListener {
     private val finalStrokes = mutableListOf<Stroke>()
     private val tool = mutableStateOf<Tool>(Tool.Eraser(size = 5f))
 
+    @SuppressLint("RestrictedApi")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         inProgressStrokesView = InProgressStrokesView(this)
         inProgressStrokesView.addFinishedStrokesListener(this)
-        // inProgressStrokesView.useNewTPlusRenderHelper = true
+        inProgressStrokesView.useNewTPlusRenderHelper = true
 
         setContent {
             EaselTheme {
@@ -99,6 +100,7 @@ fun NoteCanvas(
                     inputHandler.handleMotionEvent(event)
                     true
                 }
+                inProgressStrokesView.eagerInit()
                 rootView.setOnTouchListener(touchListener)
                 rootView.addView(inProgressStrokesView)
                 rootView
@@ -109,7 +111,7 @@ fun NoteCanvas(
             val canvas = drawContext.canvas.nativeCanvas
 
             strokes.forEach { stroke ->
-                canvasRenderer.draw(canvas, stroke, Matrix())
+                canvasRenderer.draw(canvas, stroke, transform.value)
             }
         }
     }

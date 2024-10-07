@@ -92,11 +92,15 @@ class DrawingNode(
 
         val motionEventToWorldTransform = Matrix()
         worldToScreenTransform.value.invert(motionEventToWorldTransform)
-        currentStrokeId = inProgressStrokesView.startStroke(event, pointerId, brush, motionEventToWorldTransform)
+        val scale = getMatrixScale(motionEventToWorldTransform)
+        currentStrokeId = inProgressStrokesView.startStroke(event,
+            pointerId,
+            brush.copy(epsilon = 0.1f * scale),
+            motionEventToWorldTransform)
 
         predictor.record(event)
 
-        Log.d("NoteCanvas", "onEnter: $currentStrokeId")
+        Log.d("NoteCanvas", "onEnter: $currentStrokeId (scale=${scale})")
     }
 
     override fun onExit(event: MotionEvent?) {
@@ -231,4 +235,13 @@ class PinchZoomNode(private val onTransform: (Matrix) -> Unit) : InputStateNode 
         val dy = y1 - y0
         return kotlin.math.sqrt(dx * dx + dy * dy)
     }
+}
+
+fun getMatrixScale(matrix: Matrix): Float {
+    val values = FloatArray(9)
+    matrix.getValues(values)
+
+    // Scale is stored in values[0] (scaleX) and values[4] (scaleY)
+    // Assuming uniform scaling, return values[0] (scaleX)
+    return values[Matrix.MSCALE_X]
 }
