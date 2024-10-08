@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.ink.brush.Brush
 import androidx.ink.brush.StockBrushes
@@ -29,17 +30,33 @@ sealed class Tool {
     data object Selection : Tool()
 }
 
+data class ToolSettings(
+    val pen: Tool.Pen,
+    val eraser: Tool.Eraser,
+    val selection: Tool.Selection,
+)
+
+fun ToolSettings.getActiveTool(tool: ActiveTool) = when (tool) {
+    ActiveTool.PEN -> this.pen
+    ActiveTool.ERASER -> this.eraser
+    ActiveTool.SELECTION -> this.selection
+}
+
+enum class ActiveTool {
+    PEN, ERASER, SELECTION
+}
+
 @Composable
 fun Toolbar(
-    tool: Tool,
-    setTool: (Tool) -> Unit
+    settings: ToolSettings,
+    activeTool: ActiveTool,
+    setToolSettings: (ToolSettings) -> Unit,
+    setActiveTool: (ActiveTool) -> Unit
 ) {
-    val shape = RoundedCornerShape(8.dp)
-    // Floating toolbar that overlaps the Canvas
     Row(
         modifier = Modifier
             .padding(32.dp)
-            .shadow(elevation = 2.dp, shape = shape)
+            .shadow(elevation = 2.dp, shape = RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .wrapContentSize()
     ) {
@@ -50,45 +67,25 @@ fun Toolbar(
             ToolIconButton(
                 icon = Icons.Default.Edit,
                 contentDescription = "Pen",
-                isSelected = tool is Tool.Pen,
-                onClick = {
-                    setTool(Tool.Pen(brush = Brush.createWithColorIntArgb(
-                        family = StockBrushes.pressurePenLatest,
-                        size = 5f,
-                        colorIntArgb = Color.Black.toArgb(),
-                        epsilon = 0.1f)))
-                }
+                isSelected = activeTool == ActiveTool.PEN,
+                onClick = { setActiveTool(ActiveTool.PEN) }
             )
             ToolIconButton(
                 icon = Icons.Default.Delete,
                 contentDescription = "Eraser",
-                isSelected = tool is Tool.Eraser,
-                onClick = {
-                    setTool(Tool.Eraser(size = 10f))
-                }
+                isSelected = activeTool == ActiveTool.ERASER,
+                onClick = { setActiveTool(ActiveTool.ERASER) }
             )
             ToolIconButton(
                 icon = Icons.Default.SelectAll,
                 contentDescription = "Selection",
-                isSelected = tool is Tool.Selection,
-                onClick = {
-                    setTool(Tool.Selection)
-                }
+                isSelected = activeTool == ActiveTool.SELECTION,
+                onClick = { setActiveTool(ActiveTool.SELECTION) }
             )
 
-            // Additional settings based on the selected tool
-            when (tool) {
-                is Tool.Pen -> {
-                    PenSettings(tool.brush) { newBrush ->
-                        setTool(Tool.Pen(newBrush))
-                    }
-                }
-                is Tool.Eraser -> {
-                    // No additional settings for Eraser tool
-                }
-                Tool.Selection -> {
-                    // No additional settings for Selection tool
-                }
+            PenSettings(settings.pen.brush, penActive =  activeTool == ActiveTool.PEN) { brush ->
+                setToolSettings(settings.copy(pen = Tool.Pen(brush)))
+                setActiveTool(ActiveTool.PEN)
             }
         }
     }
@@ -104,7 +101,7 @@ fun ToolIconButton(
     IconButton(
         onClick = onClick,
         colors = IconButtonDefaults.iconButtonColors(
-            contentColor = if (isSelected) MaterialTheme.colorScheme.primary else LocalContentColor.current
+            contentColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha=0.5f)
         )
     ) {
         Icon(icon, contentDescription = contentDescription)
@@ -114,10 +111,11 @@ fun ToolIconButton(
 @Composable
 fun PenSettings(
     brush: Brush,
+    penActive: Boolean,
     onBrushChange: (Brush) -> Unit
 ) {
     Row(modifier = Modifier.padding(8.dp, 0.dp)) {
-        ColorPalette(selectedColor = Color(brush.colorIntArgb)) { color ->
+        ColorPalette(selectedColor = Color(brush.colorIntArgb), penActive = penActive) { color ->
             onBrushChange(brush.copyWithColorIntArgb(colorIntArgb = color.toArgb()))
         }
     }
@@ -126,25 +124,50 @@ fun PenSettings(
 @Composable
 fun ColorPalette(
     selectedColor: Color,
+    penActive: Boolean,
     onColorSelected: (Color) -> Unit
 ) {
-    val colors = listOf(Color.Black, Color.Red, Color.Green, Color.Blue, Color.Yellow, Color.Magenta)
+    val colors = listOf(Color.Black, Color.Red, Color.Blue)
     Row {
         colors.forEach { color ->
+            val active = penActive && color == selectedColor
             Box(
                 modifier = Modifier
                     .size(32.dp)
                     .padding(4.dp)
-                    .background(color, shape = CircleShape)
                     .border(
-                        width = if (color == selectedColor) 2.dp else 0.dp,
-                        color = if (color == selectedColor) MaterialTheme.colorScheme.onSurface else Color.Transparent,
+                        width = if (active) 2.dp else 0.dp,
+                        color = if (active) color else Color.Transparent,
                         shape = CircleShape
                     )
+                    .padding(if (active) 4.dp else 0.dp)
+                    .background(color, shape = CircleShape)
                     .clickable {
                         onColorSelected(color)
                     }
             )
         }
     }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PreviewToolbar() {
+    val settings = remember { mutableStateOf(ToolSettings(
+        pen = Tool.Pen(Brush.createWithColorIntArgb(
+            family = StockBrushes.pressurePenLatest,
+            size = 3f,
+            colorIntArgb = Color.Black.toArgb(),
+            epsilon = 0.1f
+        )),
+        eraser = Tool.Eraser(5f),
+        selection = Tool.Selection,
+    )) }
+    val activeTool = remember { mutableStateOf(ActiveTool.PEN) }
+    Toolbar(
+        settings = settings.value,
+        activeTool = activeTool.value,
+        setActiveTool = { tool -> activeTool.value = tool },
+        setToolSettings = { newSettings -> settings.value = newSettings}
+    )
 }

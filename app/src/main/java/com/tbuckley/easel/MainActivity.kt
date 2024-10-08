@@ -13,17 +13,23 @@ import androidx.annotation.UiThread
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.ink.authoring.InProgressStrokeId
 import androidx.ink.authoring.InProgressStrokesFinishedListener
 import androidx.ink.authoring.InProgressStrokesView
+import androidx.ink.brush.Brush
+import androidx.ink.brush.StockBrushes
 import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
 import androidx.ink.strokes.Stroke
 import com.tbuckley.easel.ui.theme.EaselTheme
@@ -31,7 +37,18 @@ import com.tbuckley.easel.ui.theme.EaselTheme
 class MainActivity : ComponentActivity(), InProgressStrokesFinishedListener {
     private lateinit var inProgressStrokesView: InProgressStrokesView
     private val finalStrokes = mutableListOf<Stroke>()
-    private val tool = mutableStateOf<Tool>(Tool.Eraser(size = 5f))
+    val settings = mutableStateOf(ToolSettings(
+        pen = Tool.Pen(
+            Brush.createWithColorIntArgb(
+            family = StockBrushes.pressurePenLatest,
+            size = 3f,
+            colorIntArgb = Color.Black.toArgb(),
+            epsilon = 0.1f
+        )),
+        eraser = Tool.Eraser(5f),
+        selection = Tool.Selection,
+    ))
+    val activeTool = mutableStateOf(ActiveTool.PEN)
 
     @SuppressLint("RestrictedApi")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,8 +66,19 @@ class MainActivity : ComponentActivity(), InProgressStrokesFinishedListener {
                         modifier = Modifier.padding(innerPadding),
                         inProgressStrokesView = inProgressStrokesView,
                         strokes = finalStrokes,
+                        tool = settings.value.getActiveTool(activeTool.value)
                     )
-                    Toolbar(tool.value, setTool = { tool.value = it } )
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Toolbar(
+                            settings = settings.value,
+                            activeTool = activeTool.value,
+                            setActiveTool = { tool -> activeTool.value = tool },
+                            setToolSettings = { newSettings -> settings.value = newSettings}
+                        )
+                    }
                 }
             }
         }
@@ -70,6 +98,7 @@ fun NoteCanvas(
     modifier: Modifier,
     inProgressStrokesView: InProgressStrokesView,
     strokes: List<Stroke>,
+    tool: Tool,
 ) {
     val transform = remember { mutableStateOf(Matrix()) }
     val canvasRenderer = CanvasStrokeRenderer.create()
@@ -84,6 +113,11 @@ fun NoteCanvas(
     }))
     inputHandler.setCurrentNode("idle")
 
+    val drawingNode = remember { mutableStateOf<DrawingNode?>(null) }
+    if(drawingNode.value != null && tool is Tool.Pen) {
+        drawingNode.value!!.brush = tool.brush
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
@@ -95,7 +129,8 @@ fun NoteCanvas(
                         FrameLayout.LayoutParams.MATCH_PARENT
                     )
                 }
-                inputHandler.registerNode(DrawingNode(rootView, inProgressStrokesView, transform))
+                drawingNode.value = DrawingNode(rootView, inProgressStrokesView, transform)
+                inputHandler.registerNode(drawingNode.value!!)
                 val touchListener = View.OnTouchListener { _, event ->
                     inputHandler.handleMotionEvent(event)
                     true
