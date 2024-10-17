@@ -66,7 +66,7 @@ class IdleNode : InputStateNode {
 class DrawingNode(
     private val view: View,
     private val inProgressStrokesView: InProgressStrokesView,
-    private val worldToScreenTransform: MutableState<Matrix>
+    private val getWorldToScreenTransform: () -> Matrix
 ) : InputStateNode {
     override val id: String = "drawing"
     private val predictor: MotionEventPredictor = MotionEventPredictor.newInstance(view)
@@ -91,7 +91,7 @@ class DrawingNode(
         currentPointerId = pointerId
 
         val motionEventToWorldTransform = Matrix()
-        worldToScreenTransform.value.invert(motionEventToWorldTransform)
+        getWorldToScreenTransform().invert(motionEventToWorldTransform)
         val scale = getMatrixScale(motionEventToWorldTransform)
         currentStrokeId = inProgressStrokesView.startStroke(event,
             pointerId,
