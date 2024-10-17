@@ -42,6 +42,8 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -113,9 +115,9 @@ fun NoteCanvas(
     onStrokesFinished: (Map<InProgressStrokeId, Stroke>) -> Unit
 ) {
     val context = LocalContext.current
-    var transform by remember { mutableStateOf(Matrix()) }
-    val canvasRenderer = CanvasStrokeRenderer.create()
+    var transform by rememberSaveable(stateSaver = matrixSaver()) { mutableStateOf(Matrix()) }
 
+    val canvasRenderer = remember { CanvasStrokeRenderer.create() }
     val inProgressStrokesView = remember {
         InProgressStrokesView(context).apply {
             addFinishedStrokesListener(object : InProgressStrokesFinishedListener {
@@ -128,7 +130,6 @@ fun NoteCanvas(
             useNewTPlusRenderHelper = true
         }
     }
-
     val inputHandler = remember { 
         createInputStateMachine(
             initialTransform = transform,
@@ -139,7 +140,6 @@ fun NoteCanvas(
             }
         )
     }
-
     var drawingNode by remember { mutableStateOf<DrawingNode?>(null) }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -220,3 +220,16 @@ private fun createDrawingView(
     
     return rootView
 }
+
+fun matrixSaver(): Saver<Matrix, List<Float>> = Saver(
+    save = { matrix ->
+        val values = FloatArray(9)
+        matrix.getValues(values)
+        values.toList()
+    },
+    restore = { list ->
+        Matrix().apply {
+            setValues(list.toFloatArray())
+        }
+    }
+)
