@@ -44,6 +44,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
+import android.graphics.Bitmap
+import android.graphics.Picture
+import android.os.Environment
+import androidx.core.content.ContextCompat
+import java.io.File
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -83,6 +92,9 @@ fun MainScreen(
         mutableStateOf(ActiveTool.PEN)
     }
 
+    val context = LocalContext.current
+    val canvasRenderer = remember { CanvasStrokeRenderer.create() }
+
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         NoteCanvas(
             modifier = Modifier.padding(innerPadding),
@@ -100,7 +112,23 @@ fun MainScreen(
                 settings = settings.value,
                 activeTool = activeTool.value,
                 setActiveTool = { tool -> activeTool.value = tool },
-                setToolSettings = { newSettings -> settings.value = newSettings}
+                setToolSettings = { newSettings -> settings.value = newSettings},
+                onScreenshot = {
+                    val PADDING = 16
+                    val size = canvasElementViewModel.getTotalSize()
+                    val picture = Picture()
+                    val canvas = picture.beginRecording(size.right.toInt() + PADDING, size.bottom.toInt() + PADDING) // Adjust size as needed
+                    // Fill the canvas with a white background
+                    canvas.drawColor(Color.White.toArgb())
+                    canvasElementViewModel.elements.forEach { stroke ->
+                        canvasRenderer.draw(canvas, stroke, Matrix())
+                    }
+                    picture.endRecording()
+                    picture.endRecording()
+
+                    val bitmap = Bitmap.createBitmap(picture)
+                    saveImageToGallery(context, bitmap)
+                }
             )
         }
     }
@@ -233,3 +261,21 @@ fun matrixSaver(): Saver<Matrix, List<Float>> = Saver(
         }
     }
 )
+
+private fun saveImageToGallery(context: Context, bitmap: Bitmap) {
+    val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+    val filename = "Easel_$timestamp.png"
+
+    val imagesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+    val imageFile = File(imagesDir, filename)
+
+    try {
+        FileOutputStream(imageFile).use { out ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+        }
+        // Notify the system about the new file
+        ContextCompat.getExternalFilesDirs(context, null)
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+}

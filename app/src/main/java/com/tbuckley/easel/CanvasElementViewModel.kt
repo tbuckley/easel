@@ -14,7 +14,9 @@ class CanvasElementViewModel : ViewModel() {
     }
 
     fun getTotalSize(): Rect {
-        if (_elements.isEmpty()) {
+        val boxes = _elements.mapNotNull { it.shape.computeBoundingBox() }
+
+        if (boxes.isEmpty()) {
             return Rect.Zero
         }
 
@@ -23,14 +25,11 @@ class CanvasElementViewModel : ViewModel() {
         var maxX = Float.NEGATIVE_INFINITY
         var maxY = Float.NEGATIVE_INFINITY
 
-        _elements.forEach { stroke ->
-            val bounds = stroke.shape.computeBoundingBox()
-            if(bounds != null) {
-                minX = minOf(minX, bounds.xMin)
-                minY = minOf(minY, bounds.yMin)
-                maxX = maxOf(maxX, bounds.xMax)
-                maxY = maxOf(maxY, bounds.yMax)
-            }
+        boxes.forEach { box ->
+            minX = minOf(minX, box.xMin)
+            minY = minOf(minY, box.yMin)
+            maxX = maxOf(maxX, box.xMax)
+            maxY = maxOf(maxY, box.yMax)
         }
 
         return Rect(minX, minY, maxX, maxY)

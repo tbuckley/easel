@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Camera
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.SelectAll
@@ -84,7 +86,8 @@ fun Toolbar(
     settings: ToolSettings,
     activeTool: ActiveTool,
     setToolSettings: (ToolSettings) -> Unit,
-    setActiveTool: (ActiveTool) -> Unit
+    setActiveTool: (ActiveTool) -> Unit,
+    onScreenshot: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -116,7 +119,17 @@ fun Toolbar(
                 onClick = { setActiveTool(ActiveTool.SELECTION) }
             )
 
-            PenSettings(settings.pen.brush, penActive =  activeTool == ActiveTool.PEN) { brush ->
+            // Add the new camera icon button
+            IconButton(
+                onClick = onScreenshot,
+                colors = IconButtonDefaults.iconButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Icon(Icons.Default.CameraAlt, contentDescription = "Take Screenshot")
+            }
+
+            PenSettings(settings.pen.brush, penActive = activeTool == ActiveTool.PEN) { brush ->
                 setToolSettings(settings.copy(pen = Tool.Pen(brush)))
                 setActiveTool(ActiveTool.PEN)
             }
@@ -201,6 +214,7 @@ fun PreviewToolbar() {
         settings = settings.value,
         activeTool = activeTool.value,
         setActiveTool = { tool -> activeTool.value = tool },
-        setToolSettings = { newSettings -> settings.value = newSettings}
+        setToolSettings = { newSettings -> settings.value = newSettings},
+        onScreenshot = { /* Preview callback */ }
     )
 }
