@@ -12,6 +12,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -22,6 +23,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.ink.brush.Brush
 import androidx.ink.brush.StockBrushes
+import com.google.gson.Gson
 
 // Define the Tool sealed class and supporting data classes
 sealed class Tool {
@@ -45,6 +47,37 @@ fun ToolSettings.getActiveTool(tool: ActiveTool) = when (tool) {
 enum class ActiveTool {
     PEN, ERASER, SELECTION
 }
+
+fun toolSettingsSaver(converters: Converters): Saver<ToolSettings, String> = Saver(
+    save = { toolSettings ->
+        val gson = Gson()
+        val jsonObject = com.google.gson.JsonObject()
+        jsonObject.addProperty("penBrush", converters.brushToString(toolSettings.pen.brush))
+        jsonObject.addProperty("eraserSize", toolSettings.eraser.size)
+        gson.toJson(jsonObject)
+    },
+    restore = { jsonString ->
+        val gson = Gson()
+        val jsonObject = gson.fromJson(jsonString, com.google.gson.JsonObject::class.java)
+        val penBrush = converters.stringToBrush(jsonObject.get("penBrush").asString)
+        val eraserSize = jsonObject.get("eraserSize").asFloat
+        
+        ToolSettings(
+            pen = Tool.Pen(penBrush),
+            eraser = Tool.Eraser(eraserSize),
+            selection = Tool.Selection
+        )
+    }
+)
+
+fun activeToolSaver(): Saver<ActiveTool, String> = Saver(
+    save = { state ->
+        state.name
+    },
+    restore = { value ->
+        ActiveTool.valueOf(value)
+    }
+)
 
 @Composable
 fun Toolbar(

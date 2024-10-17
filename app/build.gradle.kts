@@ -55,6 +55,7 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
 
     // Ink API
     implementation(libs.androidx.ink.authoring)
@@ -70,4 +71,7 @@ dependencies {
     // Material Icons
     implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.material.icons.extended)
+
+    // Gson
+    implementation(libs.gson)
 }

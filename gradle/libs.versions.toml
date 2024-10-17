@@ -1,5 +1,6 @@
 [versions]
 agp = "8.7.0"
+gson = "2.10.1"
 ink = "1.0.0-alpha01"
 inputMotionprediction = "1.0.0-beta05"
 kotlin = "2.0.0"
@@ -21,8 +22,10 @@ androidx-ink-nativeloader = { module = "androidx.ink:ink-nativeloader", version.
 androidx-ink-rendering = { module = "androidx.ink:ink-rendering", version.ref = "ink" }
 androidx-ink-strokes = { module = "androidx.ink:ink-strokes", version.ref = "ink" }
 androidx-input-motionprediction = { module = "androidx.input:input-motionprediction", version.ref = "inputMotionprediction" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycleRuntimeKtx" }
 androidx-material-icons-core = { module = "androidx.compose.material:material-icons-core", version.ref = "materialIconsCore" }
 androidx-material-icons-extended = { module = "androidx.compose.material:material-icons-extended", version.ref = "materialIconsCore" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }

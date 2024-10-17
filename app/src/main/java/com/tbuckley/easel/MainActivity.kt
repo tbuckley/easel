@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -40,50 +41,65 @@ import android.view.MotionEvent
 import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 class MainActivity : ComponentActivity() {
-    private val canvasElementViewModel: CanvasElementViewModel by viewModels()
-    val settings = mutableStateOf(ToolSettings(
-        pen = Tool.Pen(
-            Brush.createWithColorIntArgb(
-            family = StockBrushes.pressurePenLatest,
-            size = 3f,
-            colorIntArgb = Color.Black.toArgb(),
-            epsilon = 0.1f
-        )),
-        eraser = Tool.Eraser(5f),
-        selection = Tool.Selection,
-    ))
-    val activeTool = mutableStateOf(ActiveTool.PEN)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         setContent {
             EaselTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    NoteCanvas(
-                        modifier = Modifier.padding(innerPadding),
-                        strokes = canvasElementViewModel.elements,
-                        tool = settings.value.getActiveTool(activeTool.value),
-                        onStrokesFinished = { strokes ->
-                            canvasElementViewModel.addStrokes(strokes.values)
-                        }
-                    )
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.TopCenter
-                    ) {
-                        Toolbar(
-                            settings = settings.value,
-                            activeTool = activeTool.value,
-                            setActiveTool = { tool -> activeTool.value = tool },
-                            setToolSettings = { newSettings -> settings.value = newSettings}
-                        )
-                    }
-                }
+                MainScreen()
             }
+        }
+    }
+}
+
+@Composable
+fun MainScreen(
+    canvasElementViewModel: CanvasElementViewModel = viewModel()
+) {
+    val converters = Converters()
+
+    val settings = rememberSaveable(stateSaver = toolSettingsSaver(converters)) {
+        mutableStateOf(ToolSettings(
+            pen = Tool.Pen(
+                Brush.createWithColorIntArgb(
+                    family = StockBrushes.pressurePenLatest,
+                    size = 3f,
+                    colorIntArgb = Color.Black.toArgb(),
+                    epsilon = 0.1f
+                )
+            ),
+            eraser = Tool.Eraser(5f),
+            selection = Tool.Selection,
+        ))
+    }
+
+    val activeTool = rememberSaveable(stateSaver = activeToolSaver()) {
+        mutableStateOf(ActiveTool.PEN)
+    }
+
+    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+        NoteCanvas(
+            modifier = Modifier.padding(innerPadding),
+            strokes = canvasElementViewModel.elements,
+            tool = settings.value.getActiveTool(activeTool.value),
+            onStrokesFinished = { strokes ->
+                canvasElementViewModel.addStrokes(strokes.values)
+            }
+        )
+        Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Toolbar(
+                settings = settings.value,
+                activeTool = activeTool.value,
+                setActiveTool = { tool -> activeTool.value = tool },
+                setToolSettings = { newSettings -> settings.value = newSettings}
+            )
         }
     }
 }
