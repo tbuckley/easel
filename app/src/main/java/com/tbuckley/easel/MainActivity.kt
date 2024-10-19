@@ -93,12 +93,11 @@ fun MainScreen(
     }
 
     val context = LocalContext.current
-    val canvasRenderer = remember { CanvasStrokeRenderer.create() }
 
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         NoteCanvas(
             modifier = Modifier.padding(innerPadding),
-            strokes = canvasElementViewModel.elements,
+            elements = canvasElementViewModel.elements,
             tool = settings.value.getActiveTool(activeTool.value),
             onStrokesFinished = { strokes ->
                 canvasElementViewModel.addStrokes(strokes.values)
@@ -117,13 +116,18 @@ fun MainScreen(
                     val PADDING = 16
                     val size = canvasElementViewModel.getTotalSize()
                     val picture = Picture()
-                    val canvas = picture.beginRecording(size.right.toInt() + PADDING, size.bottom.toInt() + PADDING) // Adjust size as needed
+                    val canvas = picture.beginRecording(size.right.toInt() + PADDING, size.bottom.toInt() + PADDING)
+                    
                     // Fill the canvas with a white background
                     canvas.drawColor(Color.White.toArgb())
-                    canvasElementViewModel.elements.forEach { stroke ->
-                        canvasRenderer.draw(canvas, stroke, Matrix())
+
+                    // Draw the elements
+                    canvasElementViewModel.elements.forEach { element ->
+                        canvas.save()
+                        canvas.concat(element.transform)
+                        element.render(canvas)
+                        canvas.restore()
                     }
-                    picture.endRecording()
                     picture.endRecording()
 
                     val bitmap = Bitmap.createBitmap(picture)
@@ -138,14 +142,13 @@ fun MainScreen(
 @Composable
 fun NoteCanvas(
     modifier: Modifier,
-    strokes: List<Stroke>,
+    elements: List<CanvasElement>,
     tool: Tool,
     onStrokesFinished: (Map<InProgressStrokeId, Stroke>) -> Unit
 ) {
     val context = LocalContext.current
     var transform by rememberSaveable(stateSaver = matrixSaver()) { mutableStateOf(Matrix()) }
 
-    val canvasRenderer = remember { CanvasStrokeRenderer.create() }
     val inProgressStrokesView = remember {
         InProgressStrokesView(context).apply {
             addFinishedStrokesListener(object : InProgressStrokesFinishedListener {
@@ -191,12 +194,18 @@ fun NoteCanvas(
         ) {}
 
         Canvas(modifier = Modifier.fillMaxSize()) {
-            drawContext.canvas.nativeCanvas.concat(transform)
             val canvas = drawContext.canvas.nativeCanvas
+            canvas.save()
+            canvas.concat(transform)
 
-            strokes.forEach { stroke ->
-                canvasRenderer.draw(canvas, stroke, transform)
+            elements.forEach { element ->
+                canvas.save()
+                canvas.concat(element.transform)
+                element.render(canvas)
+                canvas.restore()
             }
+
+            canvas.restore()
         }
     }
 
