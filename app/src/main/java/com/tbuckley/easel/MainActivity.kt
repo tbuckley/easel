@@ -47,21 +47,44 @@ import androidx.compose.runtime.saveable.listSaver
 import android.graphics.Bitmap
 import android.graphics.Picture
 import android.os.Environment
+import androidx.compose.runtime.collectAsState
 import androidx.core.content.ContextCompat
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.tbuckley.easel.data.CanvasElementRepository
+import com.tbuckley.easel.data.CanvasElementLocalDataSource
+import com.tbuckley.easel.data.local.CanvasElementDao
+import androidx.room.Room
+import com.tbuckley.easel.data.CanvasElement
+import com.tbuckley.easel.data.local.AppDatabase
+import kotlinx.coroutines.flow.forEach
 
 class MainActivity : ComponentActivity() {
+    private lateinit var canvasElementViewModel: CanvasElementViewModel
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Initialize the database and DAO
+        val database = Room.databaseBuilder(
+            applicationContext,
+            AppDatabase::class.java,
+            "easel-database"
+        ).build()
+        val canvasElementDao = database.canvasElementDao()
+
+        // Initialize the repository and ViewModel
+        val localDataSource = CanvasElementLocalDataSource(canvasElementDao)
+        val repository = CanvasElementRepository(localDataSource)
+        canvasElementViewModel = CanvasElementViewModel(repository)
+
         setContent {
             EaselTheme {
-                MainScreen()
+                MainScreen(canvasElementViewModel)
             }
         }
     }
@@ -69,7 +92,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen(
-    canvasElementViewModel: CanvasElementViewModel = viewModel()
+    canvasElementViewModel: CanvasElementViewModel
 ) {
     val converters = Converters()
 
@@ -94,10 +117,15 @@ fun MainScreen(
 
     val context = LocalContext.current
 
+    // Load elements for a specific note (you might want to pass the noteId as a parameter)
+    LaunchedEffect(Unit) {
+        canvasElementViewModel.loadElementsForNote(1) // Example: Load elements for note with ID 1
+    }
+
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         NoteCanvas(
             modifier = Modifier.padding(innerPadding),
-            elements = canvasElementViewModel.elements,
+            elements = canvasElementViewModel.elements.collectAsState().value,
             tool = settings.value.getActiveTool(activeTool.value),
             onStrokesFinished = { strokes ->
                 canvasElementViewModel.addStrokes(strokes.values)
@@ -122,7 +150,7 @@ fun MainScreen(
                     canvas.drawColor(Color.White.toArgb())
 
                     // Draw the elements
-                    canvasElementViewModel.elements.forEach { element ->
+                    canvasElementViewModel.elements.value.forEach { element ->
                         canvas.save()
                         canvas.concat(element.transform)
                         element.render(canvas)

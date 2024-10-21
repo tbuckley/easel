@@ -153,19 +153,20 @@ class Converters {
 
     // Stroke
   
-    private fun deserializeStroke(serializedStroke: SerializedStroke): Stroke? {
-      val inputs = deserializeStrokeInputBatch(serializedStroke.inputs) ?: return null
-      val brush = deserializeBrush(serializedStroke.brush) ?: return null
-      return Stroke(brush = brush, inputs = inputs)
+    fun deserializeStroke(jsonString: String): Stroke? {
+        val serializedStroke = gson.fromJson(jsonString, SerializedStroke::class.java)
+        val inputs = deserializeStrokeInputBatch(serializedStroke.inputs) ?: return null
+        val brush = deserializeBrush(serializedStroke.brush) ?: return null
+        return Stroke(brush = brush, inputs = inputs)
     }
 
-    private fun serializeStroke(stroke: Stroke): SerializedStroke {
+    fun serializeStroke(stroke: Stroke): String {
         val serializedInputs = serializeStrokeInputBatch(stroke.inputs)
         val serializedBrush = serializeBrush(stroke.brush)
-        return SerializedStroke(
+        return gson.toJson(SerializedStroke(
             inputs = serializedInputs,
             brush = serializedBrush
-        )
+        ))
     }
   
     // Brush<->String

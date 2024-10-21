@@ -7,41 +7,69 @@ import androidx.compose.ui.geometry.Rect
 import androidx.lifecycle.ViewModel
 import androidx.ink.strokes.Stroke
 import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
+import androidx.lifecycle.viewModelScope
+import com.tbuckley.easel.data.CanvasElementRepository
+import com.tbuckley.easel.data.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import android.util.Log
 
-interface CanvasElement {
-    fun render(canvas: Canvas)
-    fun getBounds(): Rect
-    val transform: Matrix
-}
+private val sharedRenderer = CanvasStrokeRenderer.create()
 
-class StrokeCanvasElement(
-    private val stroke: Stroke,
-    override val transform: Matrix = Matrix()
-) : CanvasElement {
-    companion object {
-        private val sharedRenderer = CanvasStrokeRenderer.create()
-    }
-
-    override fun render(canvas: Canvas) {
-        sharedRenderer.draw(canvas, stroke, transform)
-    }
-
-    override fun getBounds(): Rect {
-        val box = stroke.shape.computeBoundingBox() ?: return Rect.Zero
-        return Rect(box.xMin, box.yMin, box.xMax, box.yMax)
+fun CanvasElement.render(canvas: Canvas) {
+    when (this) {
+        is StrokeElement -> sharedRenderer.draw(canvas, stroke, transform)
+        // Add cases for other CanvasElement types when implemented
     }
 }
 
-class CanvasElementViewModel : ViewModel() {
-    private val _elements = mutableStateListOf<CanvasElement>()
-    val elements: List<CanvasElement> = _elements
+fun CanvasElement.getBounds(): Rect {
+    return when (this) {
+        is StrokeElement -> {
+            val box = stroke.shape.computeBoundingBox() ?: return Rect.Zero
+            Rect(box.xMin, box.yMin, box.xMax, box.yMax)
+        }
+        // Add cases for other CanvasElement types when implemented
+        else -> Rect.Zero
+    }
+}
+
+class CanvasElementViewModel(
+    private val repository: CanvasElementRepository
+) : ViewModel() {
+    private val _elements = MutableStateFlow<List<CanvasElement>>(emptyList())
+    val elements: StateFlow<List<CanvasElement>> = _elements
+
+    private var currentNoteId: Int = -1
+
+    fun loadElementsForNote(noteId: Int) {
+        currentNoteId = noteId
+        viewModelScope.launch {
+            repository.getCanvasElementsForNote(noteId).collect { canvasElements ->
+                Log.d("CanvasElementViewModel", "getCanvasElementsForNote updated: ${canvasElements.size} elements")
+                _elements.value = canvasElements
+            }
+        }
+    }
 
     fun addStrokes(strokes: Collection<Stroke>) {
-        _elements.addAll(strokes.map { StrokeCanvasElement(it) })
+        val newElements = strokes.map { stroke ->
+            StrokeElement(
+                id = 0, // Use 0 for new elements, database will assign actual ID
+                noteId = currentNoteId,
+                stroke = stroke,
+                transform = Matrix()
+            )
+        }
+        viewModelScope.launch {
+            Log.d("CanvasElementViewModel", "Calling insertAll with ${newElements.size} new elements")
+            repository.insertAll(currentNoteId, newElements)
+        }
     }
 
     fun getTotalSize(): Rect {
-        val boxes = _elements.map { it.getBounds() }
+        val boxes = _elements.value.map { it.getBounds() }
 
         if (boxes.isEmpty()) {
             return Rect.Zero
