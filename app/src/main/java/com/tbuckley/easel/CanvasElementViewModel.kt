@@ -19,7 +19,7 @@ private val sharedRenderer = CanvasStrokeRenderer.create()
 
 fun CanvasElement.render(canvas: Canvas) {
     when (this) {
-        is StrokeElement -> sharedRenderer.draw(canvas, stroke, transform)
+        is StrokeElement -> sharedRenderer.draw(canvas, stroke, canvas.getMatrix())
         // Add cases for other CanvasElement types when implemented
     }
 }
