@@ -64,7 +64,6 @@ class CanvasElementLocalDataSource(
         return when (this) {
             is StrokeElement -> {
                 val data = converters.serializeStroke(stroke)
-                Log.d("CanvasElementDataSource", "Serialized stroke: ${data.length}")
                 CanvasElementEntity(
                     id = id,
                     noteId = noteId,
@@ -84,7 +83,6 @@ class CanvasElementLocalDataSource(
         val converters = Converters()
         return when (type) {
             CanvasElementType.STROKE -> {
-                Log.d("CanvasElementDataSource", "Deserialized stroke: ${data.length}")
                 val deserializedStroke = converters.deserializeStroke(data)
                 if (deserializedStroke != null) {
                     StrokeElement(
