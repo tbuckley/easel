@@ -139,7 +139,7 @@ fun MainScreen(
             }
         )
         Box(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.padding(innerPadding).fillMaxWidth(),
             contentAlignment = Alignment.TopCenter
         ) {
             Toolbar(
