@@ -45,4 +45,7 @@ interface CanvasElementDao {
             update(canvasElement)
         }
     }
+
+    @Query("DELETE FROM canvas_elements WHERE noteId = :noteId")
+    suspend fun deleteAllForNote(noteId: Int)
 }

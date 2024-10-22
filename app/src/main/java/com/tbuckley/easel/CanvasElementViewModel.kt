@@ -89,4 +89,16 @@ class CanvasElementViewModel(
 
         return Rect(minX, minY, maxX, maxY)
     }
+
+    fun deleteAllForCurrentNote() {
+        if (currentNoteId != -1) {
+            viewModelScope.launch {
+                Log.d("CanvasElementViewModel", "Deleting all elements for note $currentNoteId")
+                repository.deleteAllForNote(currentNoteId)
+                // The Flow will automatically update the UI
+            }
+        } else {
+            Log.w("CanvasElementViewModel", "Attempted to delete all elements without a valid noteId")
+        }
+    }
 }

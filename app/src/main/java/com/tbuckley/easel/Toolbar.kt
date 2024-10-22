@@ -11,6 +11,7 @@ import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DoNotDisturbAlt
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -87,7 +88,8 @@ fun Toolbar(
     activeTool: ActiveTool,
     setToolSettings: (ToolSettings) -> Unit,
     setActiveTool: (ActiveTool) -> Unit,
-    onScreenshot: () -> Unit
+    onScreenshot: () -> Unit,
+    onClearAll: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -127,6 +129,15 @@ fun Toolbar(
                 )
             ) {
                 Icon(Icons.Default.CameraAlt, contentDescription = "Take Screenshot")
+            }
+
+            IconButton(
+                onClick = onClearAll,
+                colors = IconButtonDefaults.iconButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Icon(Icons.Default.DoNotDisturbAlt, contentDescription = "Take Screenshot")
             }
 
             PenSettings(settings.pen.brush, penActive = activeTool == ActiveTool.PEN) { brush ->

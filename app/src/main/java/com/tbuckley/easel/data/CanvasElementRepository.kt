@@ -13,6 +13,10 @@ class CanvasElementRepository(
         localDataSource.insertAll(noteId, canvasElements)
     }
 
+    suspend fun deleteAllForNote(noteId: Int) {
+        localDataSource.deleteAllForNote(noteId)
+    }
+
     // Uncomment and implement these methods when needed
     /*
     suspend fun updateAll(canvasElements: List<CanvasElement>) {

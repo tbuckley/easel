@@ -50,6 +50,10 @@ class CanvasElementLocalDataSource(
         canvasElementDao.insertAll(entities)
         Log.d("CanvasElementDataSource", "Inserted ${entities.size} CanvasElementEntities")
     }
+
+    suspend fun deleteAllForNote(noteId: Int) {
+        canvasElementDao.deleteAllForNote(noteId)
+    }
 //
 //    suspend fun delete(canvasElement: CanvasElement) {
 //        canvasElementDao.delete(canvasElement)

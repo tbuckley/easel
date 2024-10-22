@@ -167,6 +167,9 @@ fun MainScreen(
 
                     val bitmap = Bitmap.createBitmap(picture)
                     saveImageToGallery(context, bitmap)
+                },
+                onClearAll = {
+                    canvasElementViewModel.deleteAllForCurrentNote()
                 }
             )
         }
