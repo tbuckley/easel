@@ -61,6 +61,13 @@ import androidx.room.Room
 import com.tbuckley.easel.data.CanvasElement
 import com.tbuckley.easel.data.local.AppDatabase
 import kotlinx.coroutines.flow.forEach
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var canvasElementViewModel: CanvasElementViewModel
@@ -176,6 +183,7 @@ fun NoteCanvas(
 ) {
     val context = LocalContext.current
     var transform by rememberSaveable(stateSaver = matrixSaver()) { mutableStateOf(Matrix()) }
+    var removedStrokes = remember { mutableListOf<Stroke>() }
 
     val inProgressStrokesView = remember {
         InProgressStrokesView(context).apply {
@@ -183,12 +191,19 @@ fun NoteCanvas(
                 @UiThread
                 override fun onStrokesFinished(strokes: Map<InProgressStrokeId, Stroke>) {
                     onStrokesFinished(strokes)
+                    removedStrokes.addAll(strokes.values)
                     removeFinishedStrokes(strokes.keys)
                 }
             })
             useNewTPlusRenderHelper = true
         }
     }
+
+    // Clear removedStrokes when elements change
+    SideEffect {
+        removedStrokes.clear()
+    }
+
     val inputHandler = remember { 
         createInputStateMachine(
             initialTransform = transform,
@@ -231,6 +246,11 @@ fun NoteCanvas(
                 canvas.concat(element.transform)
                 element.render(canvas)
                 canvas.restore()
+            }
+
+            val renderer = CanvasStrokeRenderer.create()
+            removedStrokes.forEach { stroke ->
+                renderer.draw(canvas, stroke, transform)
             }
 
             canvas.restore()
