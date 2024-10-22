@@ -1,5 +1,6 @@
 package com.tbuckley.easel
 
+import android.util.Log
 import androidx.ink.brush.Brush
 import androidx.ink.brush.InputToolType
 import androidx.ink.brush.StockBrushes
@@ -40,7 +41,8 @@ data class SerializedStrokeInput(
   val timeMillis: Float,
   val pressure: Float,
   val tiltRadians: Float,
-  val orientationRadians: Float
+  val orientationRadians: Float,
+  val strokeUnitLengthCm: Float
 )
 
 enum class SerializedToolType {
@@ -93,7 +95,6 @@ class Converters {
     private fun serializeStrokeInputBatch(inputs: StrokeInputBatch): SerializedStrokeInputBatch {
       val serializedInputs = mutableListOf<SerializedStrokeInput>()
       val scratchInput = StrokeInput()
-  
       for (i in 0 until inputs.size) {
         inputs.populate(i, scratchInput)
         serializedInputs.add(
@@ -104,6 +105,7 @@ class Converters {
             pressure = scratchInput.pressure,
             tiltRadians = scratchInput.tiltRadians,
             orientationRadians = scratchInput.orientationRadians,
+            strokeUnitLengthCm = scratchInput.strokeUnitLengthCm
           )
         )
       }
@@ -145,6 +147,7 @@ class Converters {
           pressure = input.pressure,
           tiltRadians = input.tiltRadians,
           orientationRadians = input.orientationRadians,
+          strokeUnitLengthCm = input.strokeUnitLengthCm
         )
       }
   
@@ -172,13 +175,12 @@ class Converters {
     // Brush<->String
 
     fun brushToString(brush: Brush): String {
-          val serializedBrush = serializeBrush(brush)
-          return gson.toJson(serializedBrush)
-      }
+        val serializedBrush = serializeBrush(brush)
+        return gson.toJson(serializedBrush)
+    }
   
     fun stringToBrush(jsonString: String): Brush {
-          val serializedBrush = gson.fromJson(jsonString, SerializedBrush::class.java)
-          return deserializeBrush(serializedBrush)
-      }
-  
+        val serializedBrush = gson.fromJson(jsonString, SerializedBrush::class.java)
+        return deserializeBrush(serializedBrush)
+    }
   }
