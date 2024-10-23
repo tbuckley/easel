@@ -93,7 +93,7 @@ fun Toolbar(
 ) {
     Row(
         modifier = Modifier
-            .padding(32.dp)
+            .padding(top = 16.dp)
             .shadow(elevation = 2.dp, shape = RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceContainer)
             .wrapContentSize()

@@ -2,7 +2,6 @@ package com.tbuckley.easel
 
 import android.graphics.Canvas
 import android.graphics.Matrix
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.geometry.Rect
 import androidx.lifecycle.ViewModel
 import androidx.ink.strokes.Stroke
@@ -14,6 +13,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import android.util.Log
+import com.tbuckley.easel.data.local.NoteEntity
+import com.tbuckley.easel.data.local.NoteDao
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.update
 
 private val sharedRenderer = CanvasStrokeRenderer.create()
 
@@ -36,19 +40,30 @@ fun CanvasElement.getBounds(): Rect {
 }
 
 class CanvasElementViewModel(
-    private val repository: CanvasElementRepository
+    private val repository: CanvasElementRepository,
+    private val noteDao: NoteDao
 ) : ViewModel() {
-    private val _elements = MutableStateFlow<List<CanvasElement>>(emptyList())
-    val elements: StateFlow<List<CanvasElement>> = _elements
+    // Use a single StateFlow for both notes and elements
+    private val _uiState = MutableStateFlow(UiState())
+    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private var currentNoteId: Int = -1
+    private var elementsJob: Job? = null  // Add this line
+
+    init {
+        viewModelScope.launch {
+            noteDao.getAllNotes().collect { noteList ->
+                _uiState.update { it.copy(notes = noteList) }
+            }
+        }
+    }
 
     fun loadElementsForNote(noteId: Int) {
         currentNoteId = noteId
-        viewModelScope.launch {
+        elementsJob?.cancel()
+        elementsJob = viewModelScope.launch {
             repository.getCanvasElementsForNote(noteId).collect { canvasElements ->
-                Log.d("CanvasElementViewModel", "getCanvasElementsForNote updated: ${canvasElements.size} elements")
-                _elements.value = canvasElements
+                _uiState.update { it.copy(elements = canvasElements) }
             }
         }
     }
@@ -69,7 +84,7 @@ class CanvasElementViewModel(
     }
 
     fun getTotalSize(): Rect {
-        val boxes = _elements.value.map { it.getBounds() }
+        val boxes = _uiState.value.elements.map { it.getBounds() }
 
         if (boxes.isEmpty()) {
             return Rect.Zero
@@ -101,4 +116,29 @@ class CanvasElementViewModel(
             Log.w("CanvasElementViewModel", "Attempted to delete all elements without a valid noteId")
         }
     }
+
+    fun createNewNote() {
+        viewModelScope.launch {
+            val newNoteId = noteDao.insertNote(NoteEntity())
+            loadElementsForNote(newNoteId.toInt())
+        }
+    }
+
+    fun deleteNote(note: NoteEntity) {
+        viewModelScope.launch {
+            noteDao.deleteNote(note)
+            repository.deleteAllForNote(note.id)
+            if (_uiState.value.notes.isNotEmpty()) {
+                loadElementsForNote(_uiState.value.notes.first().id)
+            } else {
+                _uiState.update { it.copy(elements = emptyList()) }
+                currentNoteId = -1
+            }
+        }
+    }
+
+    data class UiState(
+        val notes: List<NoteEntity> = emptyList(),
+        val elements: List<CanvasElement> = emptyList()
+    )
 }
