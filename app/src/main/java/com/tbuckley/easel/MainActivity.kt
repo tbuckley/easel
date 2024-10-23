@@ -216,6 +216,20 @@ fun MainScreen(
                     )
                 }
 
+            // Clickable overlay to close sidebar when tapped outside
+            AnimatedVisibility(
+                visible = isSidebarOpen,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.2f))
+                        .clickable { isSidebarOpen = false }
+                )
+            }
+
             // Sidebar
             AnimatedVisibility(
                 visible = isSidebarOpen,
