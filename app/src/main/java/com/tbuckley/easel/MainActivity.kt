@@ -65,7 +65,6 @@ import com.tbuckley.easel.data.CanvasElement
 import com.tbuckley.easel.data.local.AppDatabase
 import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -109,9 +108,7 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(
     canvasElementViewModel: CanvasElementViewModel
 ) {
-    val converters = Converters()
-
-    val settings = rememberSaveable(stateSaver = toolSettingsSaver(converters)) {
+    val settings = rememberSaveable(stateSaver = toolSettingsSaver(Converters())) {
         mutableStateOf(
             ToolSettings(
                 pen = Tool.Pen(
@@ -127,24 +124,21 @@ fun MainScreen(
             )
         )
     }
-
     val activeTool = rememberSaveable(stateSaver = activeToolSaver()) {
         mutableStateOf(ActiveTool.PEN)
     }
+    val notes by canvasElementViewModel.notes.collectAsState()
+    val elements by canvasElementViewModel.elements.collectAsState()
 
     val context = LocalContext.current
-    val uiState by canvasElementViewModel.uiState.collectAsState()
-
-    var selectedNoteId by remember { mutableStateOf<Int?>(null) }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
-            // Canvas and Toolbar
             NoteCanvas(
                 modifier = Modifier.padding(innerPadding),
-                elements = uiState.elements,
+                getElements = { elements },
                 tool = settings.value.getActiveTool(activeTool.value),
                 onStrokesFinished = { strokes ->
                     canvasElementViewModel.addStrokes(strokes.values)
@@ -174,7 +168,7 @@ fun MainScreen(
                         canvas.drawColor(Color.White.toArgb())
 
                         // Draw the elements
-                        canvasElementViewModel.uiState.value.elements.forEach { element ->
+                        canvasElementViewModel.elements.value.forEach { element ->
                             canvas.save()
                             canvas.concat(element.transform)
                             element.render(canvas)
@@ -192,17 +186,14 @@ fun MainScreen(
             }
 
             Sidebar(
-                notes = uiState.notes,
-                selectedNoteId = selectedNoteId,
+                getNotes = { notes },
                 innerPadding = innerPadding,
                 onSelectNote = { note ->
                     canvasElementViewModel.loadElementsForNote(note.id)
-                    selectedNoteId = note.id
                 },
                 onCreateNote = { canvasElementViewModel.createNewNote() },
                 onDeleteNote = {
                     note -> canvasElementViewModel.deleteNote(note)
-                    selectedNoteId = null
                 }
             )
         }
@@ -211,26 +202,24 @@ fun MainScreen(
 
 @Composable
 fun Sidebar(
-    notes: List<NoteEntity>,
-    selectedNoteId: Int?,
+    getNotes: () -> List<NoteEntity>,
     innerPadding: PaddingValues,
     onSelectNote: (NoteEntity) -> Unit,
     onCreateNote: () -> Unit,
     onDeleteNote: (NoteEntity) -> Unit,
 ) {
     var isSidebarOpen by remember { mutableStateOf(false) }
+    var selectedNoteId by remember { mutableStateOf<Int?>(null) }
 
     // Add the menu button in the top-left corner
     Box(
         modifier = Modifier
             .padding(innerPadding)
             .padding(start = 16.dp, top = 16.dp)
-//            .align(Alignment.TopStart)
             .size(48.dp)
             .shadow(2.dp, shape = CircleShape)
             .background(MaterialTheme.colorScheme.surfaceContainer, shape = CircleShape)
             .clickable { isSidebarOpen = true }
-//            .padding(8.dp)
     ) {
         Icon(
             modifier = Modifier.align(Alignment.Center),
@@ -264,16 +253,17 @@ fun Sidebar(
         enter = slideInHorizontally(initialOffsetX = { -it }),
         exit = slideOutHorizontally(targetOffsetX = { -it })
     ) {
-        NotesSidebar(
+        NotesManager(
             modifier = Modifier
                 .width(300.dp)
                 .fillMaxHeight()
                 .shadow(elevation = 8.dp)
                 .background(MaterialTheme.colorScheme.surface)
                 .padding(innerPadding),
-            notes = notes,
+            notes = getNotes(),
             onSelectNote = { note ->
                 onSelectNote(note)
+                selectedNoteId = note.id
                 isSidebarOpen = false
             },
             onCreateNote = {
@@ -282,90 +272,24 @@ fun Sidebar(
             },
             onDeleteNote = { note ->
                 onDeleteNote(note)
+                selectedNoteId = null
             },
             selectedNoteId = selectedNoteId
         )
     }
 }
 
-@Composable
-fun NotesSidebar(
-    modifier: Modifier = Modifier,
-    notes: List<NoteEntity>,
-    onSelectNote: (NoteEntity) -> Unit,
-    onCreateNote: () -> Unit,
-    onDeleteNote: (NoteEntity) -> Unit,
-    selectedNoteId: Int? // New parameter to track the selected note
-) {
-    Column(
-        modifier = modifier
-            .fillMaxHeight()
-            .padding(16.dp)
-    ) {
-        Text("Notes", style = MaterialTheme.typography.headlineSmall)
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onCreateNote) {
-            Icon(Icons.Default.Add, contentDescription = "Create new note")
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("New Note")
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        LazyColumn {
-            items(
-                count = notes.size,
-                key = { index -> notes[index].id }
-            ) { index ->
-                NoteItem(
-                    note = notes[index],
-                    onSelectNote = onSelectNote,
-                    onDeleteNote = onDeleteNote,
-                    isSelected = notes[index].id == selectedNoteId // Pass the selection state
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun NoteItem(
-    note: NoteEntity,
-    onSelectNote: (NoteEntity) -> Unit,
-    onDeleteNote: (NoteEntity) -> Unit,
-    isSelected: Boolean
-) {
-    val dateFormatter = remember { SimpleDateFormat("h:mma d MMM yyyy", Locale.getDefault()) }
-
-    ListItem(
-        headlineContent = { Text("Note ${note.id}") },
-        supportingContent = {
-            Text(dateFormatter.format(note.createdAt))
-        },
-        trailingContent = {
-            IconButton(onClick = { onDeleteNote(note) }) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete note")
-            }
-        },
-        modifier = Modifier
-            .background(
-                color = if (isSelected) Color.Gray
-                else MaterialTheme.colorScheme.surface
-            )
-            .clickable { onSelectNote(note) }
-    )
-}
-
 @SuppressLint("RestrictedApi")
 @Composable
 fun NoteCanvas(
     modifier: Modifier,
-    elements: List<CanvasElement>,
+    getElements: () -> List<CanvasElement>,
     tool: Tool,
     onStrokesFinished: (Map<InProgressStrokeId, Stroke>) -> Unit
 ) {
     val context = LocalContext.current
     var transform by rememberSaveable(stateSaver = matrixSaver()) { mutableStateOf(Matrix()) }
-    var removedStrokes = remember { mutableListOf<Stroke>() }
+    val removedStrokes = remember { mutableListOf<Stroke>() }
 
     val inProgressStrokesView = remember {
         InProgressStrokesView(context).apply {
@@ -381,6 +305,7 @@ fun NoteCanvas(
         }
     }
 
+    // FIXME: This is no longer being called since we are passing in getElements
     // Clear removedStrokes when elements change
     SideEffect {
         removedStrokes.clear()
@@ -421,10 +346,11 @@ fun NoteCanvas(
 
         Canvas(modifier = Modifier.fillMaxSize()) {
             val canvas = drawContext.canvas.nativeCanvas
+            canvas.drawColor(Color.Transparent.toArgb())
             canvas.save()
             canvas.concat(transform)
 
-            elements.forEach { element ->
+            getElements().forEach { element ->
                 canvas.save()
                 canvas.concat(element.transform)
                 element.render(canvas)

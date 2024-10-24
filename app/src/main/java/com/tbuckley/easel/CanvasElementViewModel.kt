@@ -17,7 +17,6 @@ import com.tbuckley.easel.data.local.NoteEntity
 import com.tbuckley.easel.data.local.NoteDao
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.update
 
 private val sharedRenderer = CanvasStrokeRenderer.create()
 
@@ -35,7 +34,6 @@ fun CanvasElement.getBounds(): Rect {
             Rect(box.xMin, box.yMin, box.xMax, box.yMax)
         }
         // Add cases for other CanvasElement types when implemented
-        else -> Rect.Zero
     }
 }
 
@@ -43,17 +41,19 @@ class CanvasElementViewModel(
     private val repository: CanvasElementRepository,
     private val noteDao: NoteDao
 ) : ViewModel() {
-    // Use a single StateFlow for both notes and elements
-    private val _uiState = MutableStateFlow(UiState())
-    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+    private val _notes = MutableStateFlow<List<NoteEntity>>(emptyList())
+    val notes: StateFlow<List<NoteEntity>> = _notes.asStateFlow()
+
+    private val _elements = MutableStateFlow<List<CanvasElement>>(emptyList())
+    val elements: StateFlow<List<CanvasElement>> = _elements.asStateFlow()
 
     private var currentNoteId: Int = -1
-    private var elementsJob: Job? = null  // Add this line
+    private var elementsJob: Job? = null
 
     init {
         viewModelScope.launch {
             noteDao.getAllNotes().collect { noteList ->
-                _uiState.update { it.copy(notes = noteList) }
+                _notes.value = noteList
             }
         }
     }
@@ -63,7 +63,7 @@ class CanvasElementViewModel(
         elementsJob?.cancel()
         elementsJob = viewModelScope.launch {
             repository.getCanvasElementsForNote(noteId).collect { canvasElements ->
-                _uiState.update { it.copy(elements = canvasElements) }
+                _elements.value = canvasElements
             }
         }
     }
@@ -84,7 +84,7 @@ class CanvasElementViewModel(
     }
 
     fun getTotalSize(): Rect {
-        val boxes = _uiState.value.elements.map { it.getBounds() }
+        val boxes = _elements.value.map { it.getBounds() }
 
         if (boxes.isEmpty()) {
             return Rect.Zero
@@ -128,17 +128,12 @@ class CanvasElementViewModel(
         viewModelScope.launch {
             noteDao.deleteNote(note)
             repository.deleteAllForNote(note.id)
-            if (_uiState.value.notes.isNotEmpty()) {
-                loadElementsForNote(_uiState.value.notes.first().id)
+            if (_notes.value.isNotEmpty()) {
+                loadElementsForNote(_notes.value.first().id)
             } else {
-                _uiState.update { it.copy(elements = emptyList()) }
+                _elements.value = emptyList()
                 currentNoteId = -1
             }
         }
     }
-
-    data class UiState(
-        val notes: List<NoteEntity> = emptyList(),
-        val elements: List<CanvasElement> = emptyList()
-    )
 }
