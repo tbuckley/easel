@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Matrix
 import android.os.Bundle
-import android.util.Log
 import android.view.View
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
@@ -38,12 +37,9 @@ import androidx.ink.rendering.android.canvas.CanvasStrokeRenderer
 import androidx.ink.strokes.Stroke
 import com.tbuckley.easel.ui.theme.EaselTheme
 import android.view.MotionEvent
-import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.saveable.Saver
-import androidx.compose.runtime.saveable.listSaver
 import android.graphics.Bitmap
 import android.graphics.Picture
 import android.os.Environment
@@ -54,6 +50,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.collectAsState
 import androidx.core.content.ContextCompat
 import java.io.File
@@ -63,18 +60,10 @@ import java.util.Date
 import java.util.Locale
 import com.tbuckley.easel.data.CanvasElementRepository
 import com.tbuckley.easel.data.CanvasElementLocalDataSource
-import com.tbuckley.easel.data.local.CanvasElementDao
 import androidx.room.Room
 import com.tbuckley.easel.data.CanvasElement
 import com.tbuckley.easel.data.local.AppDatabase
-import kotlinx.coroutines.flow.forEach
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.runBlocking
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
@@ -82,9 +71,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.tbuckley.easel.data.local.NoteEntity
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private lateinit var canvasElementViewModel: CanvasElementViewModel
@@ -123,18 +112,20 @@ fun MainScreen(
     val converters = Converters()
 
     val settings = rememberSaveable(stateSaver = toolSettingsSaver(converters)) {
-        mutableStateOf(ToolSettings(
-            pen = Tool.Pen(
-                Brush.createWithColorIntArgb(
-                    family = StockBrushes.pressurePenLatest,
-                    size = 3f,
-                    colorIntArgb = Color.Black.toArgb(),
-                    epsilon = 0.1f
-                )
-            ),
-            eraser = Tool.Eraser(5f),
-            selection = Tool.Selection,
-        ))
+        mutableStateOf(
+            ToolSettings(
+                pen = Tool.Pen(
+                    Brush.createWithColorIntArgb(
+                        family = StockBrushes.pressurePenLatest,
+                        size = 3f,
+                        colorIntArgb = Color.Black.toArgb(),
+                        epsilon = 0.1f
+                    )
+                ),
+                eraser = Tool.Eraser(5f),
+                selection = Tool.Selection,
+            )
+        )
     }
 
     val activeTool = rememberSaveable(stateSaver = activeToolSaver()) {
@@ -143,9 +134,7 @@ fun MainScreen(
 
     val context = LocalContext.current
     val uiState by canvasElementViewModel.uiState.collectAsState()
-    val coroutineScope = rememberCoroutineScope()
 
-    var isSidebarOpen by remember { mutableStateOf(false) }
     var selectedNoteId by remember { mutableStateOf<Int?>(null) }
 
     Scaffold(
@@ -153,116 +142,149 @@ fun MainScreen(
     ) { innerPadding ->
         Box(modifier = Modifier.fillMaxSize()) {
             // Canvas and Toolbar
-                NoteCanvas(
-                    modifier = Modifier.padding(innerPadding),
-                    elements = uiState.elements,
-                    tool = settings.value.getActiveTool(activeTool.value),
-                    onStrokesFinished = { strokes ->
-                        canvasElementViewModel.addStrokes(strokes.values)
+            NoteCanvas(
+                modifier = Modifier.padding(innerPadding),
+                elements = uiState.elements,
+                tool = settings.value.getActiveTool(activeTool.value),
+                onStrokesFinished = { strokes ->
+                    canvasElementViewModel.addStrokes(strokes.values)
+                }
+            )
+            Box(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Toolbar(
+                    settings = settings.value,
+                    activeTool = activeTool.value,
+                    setActiveTool = { tool -> activeTool.value = tool },
+                    setToolSettings = { newSettings -> settings.value = newSettings },
+                    onScreenshot = {
+                        val PADDING = 16
+                        val size = canvasElementViewModel.getTotalSize()
+                        val picture = Picture()
+                        val canvas = picture.beginRecording(
+                            size.right.toInt() + PADDING,
+                            size.bottom.toInt() + PADDING
+                        )
+
+                        // Fill the canvas with a white background
+                        canvas.drawColor(Color.White.toArgb())
+
+                        // Draw the elements
+                        canvasElementViewModel.uiState.value.elements.forEach { element ->
+                            canvas.save()
+                            canvas.concat(element.transform)
+                            element.render(canvas)
+                            canvas.restore()
+                        }
+                        picture.endRecording()
+
+                        val bitmap = Bitmap.createBitmap(picture)
+                        saveImageToGallery(context, bitmap)
+                    },
+                    onClearAll = {
+                        canvasElementViewModel.deleteAllForCurrentNote()
                     }
                 )
-                Box(
-                    modifier = Modifier.padding(innerPadding).fillMaxWidth(),
-                    contentAlignment = Alignment.TopCenter
-                ) {
-                    Toolbar(
-                        settings = settings.value,
-                        activeTool = activeTool.value,
-                        setActiveTool = { tool -> activeTool.value = tool },
-                        setToolSettings = { newSettings -> settings.value = newSettings},
-                        onScreenshot = {
-                            val PADDING = 16
-                            val size = canvasElementViewModel.getTotalSize()
-                            val picture = Picture()
-                            val canvas = picture.beginRecording(size.right.toInt() + PADDING, size.bottom.toInt() + PADDING)
-                            
-                            // Fill the canvas with a white background
-                            canvas.drawColor(Color.White.toArgb())
-
-                            // Draw the elements
-                            canvasElementViewModel.uiState.value.elements.forEach { element ->
-                                canvas.save()
-                                canvas.concat(element.transform)
-                                element.render(canvas)
-                                canvas.restore()
-                            }
-                            picture.endRecording()
-
-                            val bitmap = Bitmap.createBitmap(picture)
-                            saveImageToGallery(context, bitmap)
-                        },
-                        onClearAll = {
-                            canvasElementViewModel.deleteAllForCurrentNote()
-                        }
-                    )
-                }
-
-
-                // Add the menu button in the top-left corner
-                IconButton(
-                    onClick = { isSidebarOpen = true },
-                    modifier = Modifier
-                        .padding(innerPadding)
-                        .padding(start = 16.dp, top = 16.dp)
-                        .align(Alignment.TopStart)
-                        .size(48.dp)
-                        .shadow(4.dp, shape = CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainer, shape = CircleShape)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Menu,
-                        contentDescription = "Open sidebar",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-
-            // Clickable overlay to close sidebar when tapped outside
-            AnimatedVisibility(
-                visible = isSidebarOpen,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.2f))
-                        .clickable { isSidebarOpen = false }
-                )
             }
 
-            // Sidebar
-            AnimatedVisibility(
-                visible = isSidebarOpen,
-                enter = slideInHorizontally(initialOffsetX = { -it }),
-                exit = slideOutHorizontally(targetOffsetX = { -it })
-            ) {
-                NotesSidebar(
-                    modifier = Modifier
-                        .width(300.dp)
-                        .fillMaxHeight()
-                        .shadow(elevation = 8.dp)
-                        .background(MaterialTheme.colorScheme.surface)
-                        .padding(innerPadding),
-                    notes = uiState.notes,
-                    onNoteSelected = { note ->
-                        canvasElementViewModel.loadElementsForNote(note.id)
-                        selectedNoteId = note.id
-                        isSidebarOpen = false
-                    },
-                    onCreateNote = {
-                        canvasElementViewModel.createNewNote()
-                        isSidebarOpen = false
-                    },
-                    onDeleteNote = { note ->
-                        canvasElementViewModel.deleteNote(note)
-                        if (selectedNoteId == note.id) {
-                            selectedNoteId = null
-                        }
-                    },
-                    selectedNoteId = selectedNoteId
-                )
-            }
+            Sidebar(
+                notes = uiState.notes,
+                selectedNoteId = selectedNoteId,
+                innerPadding = innerPadding,
+                onSelectNote = { note ->
+                    canvasElementViewModel.loadElementsForNote(note.id)
+                    selectedNoteId = note.id
+                },
+                onCreateNote = { canvasElementViewModel.createNewNote() },
+                onDeleteNote = {
+                    note -> canvasElementViewModel.deleteNote(note)
+                    selectedNoteId = null
+                }
+            )
         }
+    }
+}
+
+@Composable
+fun Sidebar(
+    notes: List<NoteEntity>,
+    selectedNoteId: Int?,
+    innerPadding: PaddingValues,
+    onSelectNote: (NoteEntity) -> Unit,
+    onCreateNote: () -> Unit,
+    onDeleteNote: (NoteEntity) -> Unit,
+) {
+    var isSidebarOpen by remember { mutableStateOf(false) }
+
+    // Add the menu button in the top-left corner
+    Box(
+        modifier = Modifier
+            .padding(innerPadding)
+            .padding(start = 16.dp, top = 16.dp)
+//            .align(Alignment.TopStart)
+            .size(48.dp)
+            .shadow(2.dp, shape = CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainer, shape = CircleShape)
+            .clickable { isSidebarOpen = true }
+//            .padding(8.dp)
+    ) {
+        Icon(
+            modifier = Modifier.align(Alignment.Center),
+            imageVector = Icons.Default.Menu,
+            contentDescription = "Open sidebar",
+            tint = MaterialTheme.colorScheme.onSurface
+        )
+    }
+
+    // Clickable overlay to close sidebar when tapped outside
+    AnimatedVisibility(
+        visible = isSidebarOpen,
+        enter = fadeIn(),
+        exit = fadeOut()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.2f))
+                .pointerInput(isSidebarOpen) {
+                    detectTapGestures { offset ->
+                        isSidebarOpen = false
+                    }
+                }
+        )
+    }
+
+    // Sidebar
+    AnimatedVisibility(
+        visible = isSidebarOpen,
+        enter = slideInHorizontally(initialOffsetX = { -it }),
+        exit = slideOutHorizontally(targetOffsetX = { -it })
+    ) {
+        NotesSidebar(
+            modifier = Modifier
+                .width(300.dp)
+                .fillMaxHeight()
+                .shadow(elevation = 8.dp)
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(innerPadding),
+            notes = notes,
+            onSelectNote = { note ->
+                onSelectNote(note)
+                isSidebarOpen = false
+            },
+            onCreateNote = {
+                onCreateNote()
+                isSidebarOpen = false
+            },
+            onDeleteNote = { note ->
+                onDeleteNote(note)
+            },
+            selectedNoteId = selectedNoteId
+        )
     }
 }
 
@@ -270,7 +292,7 @@ fun MainScreen(
 fun NotesSidebar(
     modifier: Modifier = Modifier,
     notes: List<NoteEntity>,
-    onNoteSelected: (NoteEntity) -> Unit,
+    onSelectNote: (NoteEntity) -> Unit,
     onCreateNote: () -> Unit,
     onDeleteNote: (NoteEntity) -> Unit,
     selectedNoteId: Int? // New parameter to track the selected note
@@ -295,7 +317,7 @@ fun NotesSidebar(
             ) { index ->
                 NoteItem(
                     note = notes[index],
-                    onNoteSelected = onNoteSelected,
+                    onSelectNote = onSelectNote,
                     onDeleteNote = onDeleteNote,
                     isSelected = notes[index].id == selectedNoteId // Pass the selection state
                 )
@@ -308,13 +330,17 @@ fun NotesSidebar(
 @Composable
 fun NoteItem(
     note: NoteEntity,
-    onNoteSelected: (NoteEntity) -> Unit,
+    onSelectNote: (NoteEntity) -> Unit,
     onDeleteNote: (NoteEntity) -> Unit,
-    isSelected: Boolean // New parameter to track selection state
+    isSelected: Boolean
 ) {
+    val dateFormatter = remember { SimpleDateFormat("h:mma d MMM yyyy", Locale.getDefault()) }
+
     ListItem(
         headlineContent = { Text("Note ${note.id}") },
-        supportingContent = { Text(note.createdAt.toString()) },
+        supportingContent = {
+            Text(dateFormatter.format(note.createdAt))
+        },
         trailingContent = {
             IconButton(onClick = { onDeleteNote(note) }) {
                 Icon(Icons.Default.Delete, contentDescription = "Delete note")
@@ -325,7 +351,7 @@ fun NoteItem(
                 color = if (isSelected) Color.Gray
                 else MaterialTheme.colorScheme.surface
             )
-            .clickable { onNoteSelected(note) }
+            .clickable { onSelectNote(note) }
     )
 }
 
@@ -360,7 +386,7 @@ fun NoteCanvas(
         removedStrokes.clear()
     }
 
-    val inputHandler = remember { 
+    val inputHandler = remember {
         createInputStateMachine(
             initialTransform = transform,
             onTransformChanged = { newTransform ->
@@ -380,7 +406,8 @@ fun NoteCanvas(
                     context = context,
                     inProgressStrokesView = inProgressStrokesView,
                     onCreated = { rootView ->
-                        val newDrawingNode = DrawingNode(rootView, inProgressStrokesView) { transform }
+                        val newDrawingNode =
+                            DrawingNode(rootView, inProgressStrokesView) { transform }
                         inputHandler.registerNode(newDrawingNode)
                         drawingNode = newDrawingNode
                     },
@@ -448,17 +475,17 @@ private fun createDrawingView(
             FrameLayout.LayoutParams.MATCH_PARENT
         )
     }
-    
+
     val touchListener = View.OnTouchListener { _, event ->
         onMotionEvent(event)
     }
-    
+
     inProgressStrokesView.eagerInit()
     rootView.setOnTouchListener(touchListener)
     rootView.addView(inProgressStrokesView)
-    
+
     onCreated(rootView)
-    
+
     return rootView
 }
 
