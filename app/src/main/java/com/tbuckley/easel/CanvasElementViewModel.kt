@@ -47,7 +47,9 @@ class CanvasElementViewModel(
     private val _elements = MutableStateFlow<List<CanvasElement>>(emptyList())
     val elements: StateFlow<List<CanvasElement>> = _elements.asStateFlow()
 
-    private var currentNoteId: Int = -1
+    private val _currentNoteId = MutableStateFlow(-1)
+    val currentNoteId: StateFlow<Int> = _currentNoteId.asStateFlow()
+
     private var elementsJob: Job? = null
 
     init {
@@ -59,7 +61,7 @@ class CanvasElementViewModel(
     }
 
     fun loadElementsForNote(noteId: Int) {
-        currentNoteId = noteId
+        _currentNoteId.value = noteId
         elementsJob?.cancel()
         elementsJob = viewModelScope.launch {
             repository.getCanvasElementsForNote(noteId).collect { canvasElements ->
@@ -72,14 +74,14 @@ class CanvasElementViewModel(
         val newElements = strokes.map { stroke ->
             StrokeElement(
                 id = 0, // Use 0 for new elements, database will assign actual ID
-                noteId = currentNoteId,
+                noteId = _currentNoteId.value,
                 stroke = stroke,
                 transform = Matrix()
             )
         }
         viewModelScope.launch {
             Log.d("CanvasElementViewModel", "Calling insertAll with ${newElements.size} new elements")
-            repository.insertAll(currentNoteId, newElements)
+            repository.insertAll(_currentNoteId.value, newElements)
         }
     }
 
@@ -106,10 +108,10 @@ class CanvasElementViewModel(
     }
 
     fun deleteAllForCurrentNote() {
-        if (currentNoteId != -1) {
+        if (_currentNoteId.value != -1) {
             viewModelScope.launch {
-                Log.d("CanvasElementViewModel", "Deleting all elements for note $currentNoteId")
-                repository.deleteAllForNote(currentNoteId)
+                Log.d("CanvasElementViewModel", "Deleting all elements for note ${currentNoteId.value}")
+                repository.deleteAllForNote(currentNoteId.value)
                 // The Flow will automatically update the UI
             }
         } else {
@@ -132,7 +134,7 @@ class CanvasElementViewModel(
                 loadElementsForNote(_notes.value.first().id)
             } else {
                 _elements.value = emptyList()
-                currentNoteId = -1
+                _currentNoteId.value = -1
             }
         }
     }

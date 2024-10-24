@@ -187,6 +187,7 @@ fun MainScreen(
 
             Sidebar(
                 getNotes = { notes },
+                getSelectedNoteId = { canvasElementViewModel.currentNoteId.value },
                 innerPadding = innerPadding,
                 onSelectNote = { note ->
                     canvasElementViewModel.loadElementsForNote(note.id)
@@ -203,13 +204,13 @@ fun MainScreen(
 @Composable
 fun Sidebar(
     getNotes: () -> List<NoteEntity>,
+    getSelectedNoteId: () -> Int,
     innerPadding: PaddingValues,
     onSelectNote: (NoteEntity) -> Unit,
     onCreateNote: () -> Unit,
     onDeleteNote: (NoteEntity) -> Unit,
 ) {
     var isSidebarOpen by remember { mutableStateOf(false) }
-    var selectedNoteId by remember { mutableStateOf<Int?>(null) }
 
     // Add the menu button in the top-left corner
     Box(
@@ -263,7 +264,6 @@ fun Sidebar(
             notes = getNotes(),
             onSelectNote = { note ->
                 onSelectNote(note)
-                selectedNoteId = note.id
                 isSidebarOpen = false
             },
             onCreateNote = {
@@ -272,9 +272,8 @@ fun Sidebar(
             },
             onDeleteNote = { note ->
                 onDeleteNote(note)
-                selectedNoteId = null
             },
-            selectedNoteId = selectedNoteId
+            selectedNoteId = getSelectedNoteId()
         )
     }
 }
