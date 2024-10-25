@@ -30,20 +30,25 @@ data class StrokeElement(
 class CanvasElementLocalDataSource(
     private val canvasElementDao: CanvasElementDao
 ) {
-    fun getCanvasElementsForNote(noteId: Int): Flow<List<CanvasElement>> {
-        return canvasElementDao.getCanvasElementsForNote(noteId)
-            .map { entities -> 
-                Log.d("CanvasElementDataSource", "Mapping ${entities.size} entities to CanvasElements")
-                entities.mapNotNull { it.toCanvasElement() }.also { elements ->
-                    Log.d("CanvasElementDataSource", "Mapped to ${elements.size} CanvasElements")
-                }
-            }
+    fun getCanvasElementsForNote(noteId: Int): List<CanvasElement> {
+        val entities = canvasElementDao.getCanvasElementsForNote(noteId)
+        Log.d("CanvasElementDataSource", "Mapping ${entities.size} entities to CanvasElements")
+        return entities.mapNotNull { it.toCanvasElement() }.also { elements ->
+            Log.d("CanvasElementDataSource", "Mapped to ${elements.size} CanvasElements")
+        }
     }
 
 //    suspend fun updateAll(canvasElements: List<CanvasElement>) {
 //        canvasElementDao.updateAll(canvasElements)
 //    }
 //
+    suspend fun insert(noteId: Int, canvasElement: CanvasElement): Int {
+        Log.d("CanvasElementDataSource", "Inserting 1 CanvasElement")
+        val id = canvasElementDao.insert(canvasElement.toCanvasElementEntity())
+        Log.d("CanvasElementDataSource", "Inserted 1 CanvasElementEntity")
+        return id.toInt()
+    }
+
     suspend fun insertAll(noteId: Int, canvasElements: List<CanvasElement>) {
         Log.d("CanvasElementDataSource", "Inserting ${canvasElements.size} CanvasElements")
         val entities = canvasElements.map { it.toCanvasElementEntity() }

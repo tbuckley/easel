@@ -43,6 +43,7 @@ import androidx.compose.runtime.saveable.Saver
 import android.graphics.Bitmap
 import android.graphics.Picture
 import android.os.Environment
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -130,6 +131,12 @@ fun MainScreen(
     val notes by canvasElementViewModel.notes.collectAsState()
     val elements by canvasElementViewModel.elements.collectAsState()
 
+    LaunchedEffect(canvasElementViewModel) {
+        canvasElementViewModel.elements.collect {
+            Log.d("MainScreen", "Elements updated: ${it.size}")
+        }
+    }
+
     val context = LocalContext.current
 
     Scaffold(
@@ -138,7 +145,7 @@ fun MainScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             NoteCanvas(
                 modifier = Modifier.padding(innerPadding),
-                getElements = { elements },
+                elements = elements,
                 tool = settings.value.getActiveTool(activeTool.value),
                 onStrokesFinished = { strokes ->
                     canvasElementViewModel.addStrokes(strokes.values)
@@ -168,7 +175,7 @@ fun MainScreen(
                         canvas.drawColor(Color.White.toArgb())
 
                         // Draw the elements
-                        canvasElementViewModel.elements.value.forEach { element ->
+                        canvasElementViewModel.elements.value.values.forEach { element ->
                             canvas.save()
                             canvas.concat(element.transform)
                             element.render(canvas)
@@ -282,32 +289,25 @@ fun Sidebar(
 @Composable
 fun NoteCanvas(
     modifier: Modifier,
-    getElements: () -> List<CanvasElement>,
+    elements: Map<Int, CanvasElement>,
     tool: Tool,
     onStrokesFinished: (Map<InProgressStrokeId, Stroke>) -> Unit
 ) {
     val context = LocalContext.current
     var transform by rememberSaveable(stateSaver = matrixSaver()) { mutableStateOf(Matrix()) }
-    val removedStrokes = remember { mutableListOf<Stroke>() }
 
     val inProgressStrokesView = remember {
         InProgressStrokesView(context).apply {
             addFinishedStrokesListener(object : InProgressStrokesFinishedListener {
                 @UiThread
                 override fun onStrokesFinished(strokes: Map<InProgressStrokeId, Stroke>) {
+                    Log.d("NotesCanvas", "onStrokesFinished")
                     onStrokesFinished(strokes)
-                    removedStrokes.addAll(strokes.values)
                     removeFinishedStrokes(strokes.keys)
                 }
             })
             useNewTPlusRenderHelper = true
         }
-    }
-
-    // FIXME: This is no longer being called since we are passing in getElements
-    // Clear removedStrokes when elements change
-    SideEffect {
-        removedStrokes.clear()
     }
 
     val inputHandler = remember {
@@ -343,22 +343,20 @@ fun NoteCanvas(
             }
         ) {}
 
+        Log.d("NotesCanvas", "Canvas container recomposed")
         Canvas(modifier = Modifier.fillMaxSize()) {
+            Log.d("NotesCanvas", "Re-rendering canvas with ${elements.size} elements")
+
             val canvas = drawContext.canvas.nativeCanvas
             canvas.drawColor(Color.Transparent.toArgb())
             canvas.save()
             canvas.concat(transform)
 
-            getElements().forEach { element ->
+            elements.values.forEach { element ->
                 canvas.save()
                 canvas.concat(element.transform)
                 element.render(canvas)
                 canvas.restore()
-            }
-
-            val renderer = CanvasStrokeRenderer.create()
-            removedStrokes.forEach { stroke ->
-                renderer.draw(canvas, stroke, transform)
             }
 
             canvas.restore()

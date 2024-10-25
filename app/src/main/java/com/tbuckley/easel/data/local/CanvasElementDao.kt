@@ -28,10 +28,13 @@ class CanvasElementTypeConverter {
 @Dao
 interface CanvasElementDao {
     @Query("SELECT * FROM canvas_elements WHERE noteId = :noteId")
-    fun getCanvasElementsForNote(noteId: Int): Flow<List<CanvasElementEntity>>
+    fun getCanvasElementsForNote(noteId: Int): List<CanvasElementEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(canvasElements: List<CanvasElementEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(canvasElement: CanvasElementEntity): Long
 
     @Update
     suspend fun update(canvasElement: CanvasElementEntity)

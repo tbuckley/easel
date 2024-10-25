@@ -17,6 +17,11 @@ import com.tbuckley.easel.data.local.NoteEntity
 import com.tbuckley.easel.data.local.NoteDao
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 
 private val sharedRenderer = CanvasStrokeRenderer.create()
 
@@ -44,8 +49,8 @@ class CanvasElementViewModel(
     private val _notes = MutableStateFlow<List<NoteEntity>>(emptyList())
     val notes: StateFlow<List<NoteEntity>> = _notes.asStateFlow()
 
-    private val _elements = MutableStateFlow<List<CanvasElement>>(emptyList())
-    val elements: StateFlow<List<CanvasElement>> = _elements.asStateFlow()
+    private val _elements = MutableStateFlow<Map<Int, CanvasElement>>(emptyMap())
+    val elements: StateFlow<Map<Int, CanvasElement>> = _elements.asStateFlow()
 
     private val _currentNoteId = MutableStateFlow(-1)
     val currentNoteId: StateFlow<Int> = _currentNoteId.asStateFlow()
@@ -58,35 +63,51 @@ class CanvasElementViewModel(
                 _notes.value = noteList
             }
         }
-    }
 
-    fun loadElementsForNote(noteId: Int) {
-        _currentNoteId.value = noteId
-        elementsJob?.cancel()
-        elementsJob = viewModelScope.launch {
-            repository.getCanvasElementsForNote(noteId).collect { canvasElements ->
-                _elements.value = canvasElements
+        viewModelScope.launch {
+            elements.collect {
+                Log.d("CanvasElementViewModel", "Elements updated: ${it.size}")
             }
         }
     }
 
+    fun loadElementsForNote(noteId: Int) {
+        _currentNoteId.value = noteId
+//        elementsJob?.cancel()
+//        elementsJob = viewModelScope.launch {
+            _elements.value = emptyMap() // Clear the current elements
+            val newElements = repository.getCanvasElementsForNote(noteId)
+            _elements.value = newElements.associateBy { it.id }
+//        }
+    }
+
     fun addStrokes(strokes: Collection<Stroke>) {
-        val newElements = strokes.map { stroke ->
-            StrokeElement(
-                id = 0, // Use 0 for new elements, database will assign actual ID
+        Log.d("CanvasElementViewModel", "Adding ${strokes.size} new elements")
+        val baseId = _elements.value.size
+        val newElements = strokes.mapIndexed { index, stroke ->
+            val newId = baseId + index
+            val newElement = StrokeElement(
+                id = newId,
                 noteId = _currentNoteId.value,
                 stroke = stroke,
                 transform = Matrix()
             )
-        }
-        viewModelScope.launch {
-            Log.d("CanvasElementViewModel", "Calling insertAll with ${newElements.size} new elements")
-            repository.insertAll(_currentNoteId.value, newElements)
-        }
+            newId to newElement
+        }.toMap()
+
+        _elements.value += newElements
+        Log.d("CanvasElementViewModel", "Added ${newElements.size} new elements")
     }
 
+//    fun deleteElement(elementId: Int) {
+//        viewModelScope.launch {
+//            repository.deleteById(elementId)
+//            _elements.update { it - elementId }
+//        }
+//    }
+
     fun getTotalSize(): Rect {
-        val boxes = _elements.value.map { it.getBounds() }
+        val boxes = _elements.value.map { it.value.getBounds() }
 
         if (boxes.isEmpty()) {
             return Rect.Zero
@@ -133,7 +154,7 @@ class CanvasElementViewModel(
             if (_notes.value.isNotEmpty()) {
                 loadElementsForNote(_notes.value.first().id)
             } else {
-                _elements.value = emptyList()
+                _elements.value = emptyMap()
                 _currentNoteId.value = -1
             }
         }

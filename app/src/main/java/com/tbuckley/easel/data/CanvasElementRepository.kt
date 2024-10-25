@@ -5,8 +5,12 @@ import kotlinx.coroutines.flow.Flow
 class CanvasElementRepository(
     private val localDataSource: CanvasElementLocalDataSource
 ) {
-    fun getCanvasElementsForNote(noteId: Int): Flow<List<CanvasElement>> {
+    fun getCanvasElementsForNote(noteId: Int): List<CanvasElement> {
         return localDataSource.getCanvasElementsForNote(noteId)
+    }
+
+    suspend fun insert(noteId: Int, canvasElement: CanvasElement): Int {
+        return localDataSource.insert(noteId, canvasElement)
     }
 
     suspend fun insertAll(noteId: Int, canvasElements: List<CanvasElement>) {
